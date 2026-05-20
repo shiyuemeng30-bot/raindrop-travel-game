@@ -1,0 +1,4182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雨滴同行</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.10.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1a1a1a;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0, 100, 150, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const CANVAS_WIDTH = 400;
+        const CANVAS_HEIGHT = 700;
+        const CANVAS_CENTER_X = 200;
+        const CANVAS_CENTER_Y = 350;
+        const INITIAL_DROPS_COUNT = 110;
+        const MIN_DROP_RADIUS = 3;
+        const MAX_DROP_RADIUS = 7;
+        const PLAYER_INITIAL_RADIUS = 12;
+        const PLAYER_MAX_RADIUS = 35;
+        const PLAYER_RADIUS_INCREMENT = 0.3;
+        const MOVE_INTERVAL = 1500;
+        const MOVE_DURATION = 300;
+        const TRAIL_FADE_TIME = 300;
+        
+        const AI_COUNT_MIN = 5;
+        const AI_COUNT_MAX = 8;
+        const AI_INITIAL_RADIUS_MIN = 10;
+        const AI_INITIAL_RADIUS_MAX = 14;
+        const AI_MAX_RADIUS = 16;
+        const AI_RADIUS_INCREMENT = 0.2;
+        const AI_MOVE_OFFSET = 500;
+        
+        const MEETING_DISTANCE_MULTIPLIER = 1.5;
+        const PAUSE_DURATION = 2000;
+        const LONG_PRESS_THRESHOLD = 300;
+        const COOLDOWN_DURATION = 500;
+        
+        const AI_NAMES = ['雨落', '云影', '清露', '雾岚', '霜华', '雪绒', '风絮', '星点'];
+        
+        let player;
+        let drops = [];
+        let aiDrops = [];
+        let particles = [];
+        let ripples = [];
+        let trails = [];
+        let lastTrailTime = 0;
+        let nextDir = null;
+        let moveMode = 'key';
+        let noTargetCount = 0;
+        let lastMoveTime = 0;
+        let isMoving = false;
+        let moveStartPos;
+        let moveTargetPos;
+        let moveStartTime;
+        let swallowCount = 0;
+        let starCount = 0;
+        let gameOver = false;
+        let gameOverTime = 0;
+        let starPopup = null;
+        let dustEffectEndTime = 0;
+        
+        const STAR_GOAL = 10;
+        let missionComplete = false;
+        let missionCompleteTime = 0;
+        
+        const MISSION_TIME_LIMIT = 120000;
+        let showMissionDialog = true;
+        let missionStartTime = 0;
+        let tutorialTriggered = false; // 防止教程重复触发的锁
+        let missionTimeRemaining = MISSION_TIME_LIMIT;
+        let missionFailed = false;
+        let missionFailedTime = 0;
+        
+        const FUSION_DURATION = 15000;
+        const MAX_FUSIONS = 3;
+        const FUSION_INTERVAL_REDUCTION = 400;
+        const DUST_EFFECT_DURATION = 4000;
+        const DUST_INTERVAL_INCREASE = 500;
+        
+        let isPaused = false;
+        let manualPaused = false;
+        let meetingAI = null;
+        let pauseStartTime = 0;
+        let longPressStartTime = 0;
+        let touchLongPressStartTime = 0;
+        
+        const greetingMessages = [
+            '你好呀！',
+            '很高兴遇见你！',
+            '一起走吧！',
+            '交个朋友吧！',
+            '同行一段？',
+            '结伴而行！',
+            '你好~',
+            '嗨！'
+        ];
+        let currentGreeting = '';
+        let cooldownEndTime = 0;
+        let fusionPopup = null;
+        let leavePopup = null;
+        let fusedAIs = [];
+        let playerMoveInterval = MOVE_INTERVAL;
+        let awakeningFlashEndTime = 0;
+        
+        let activePartners = 0;
+        
+        const rainbowColors = [
+            [255, 100, 100],
+            [255, 165, 100],
+            [255, 255, 100],
+            [100, 255, 100],
+            [100, 255, 255],
+            [100, 100, 255],
+            [255, 100, 255]
+        ];
+        let awakeningParticles = [];
+        
+        let starGlowEffect = { active: false, color: [255, 255, 200], endTime: 0 };
+
+        let showStartDialog = false;
+        let startDialogEndTime = 0;
+        let gameStartTime = 0;
+        
+        let showDustWarning = false;
+        let dustWarningEndTime = 0;
+        let hasSeenDustWarning = false;
+
+        let clickParticles = [];
+        
+        let bgImage;
+        let bgLoaded = false;
+        let bgLoadError = false;
+        
+        let startImage;
+        let startImageLoaded = false;
+        
+        let leftMousePressed = false;
+        let rightMousePressed = false;
+        
+        let restartConfirm = false;
+        let showHelp = false;
+        let showOperationGuide = false;
+        let introState = 'waiting';
+        let fifteenthVideo;
+        let fifteenthVideoLoaded = false;
+        let introVideo;
+        let introVideoLoaded = false;
+        let secondVideo;
+        let secondVideoLoaded = false;
+        let thirdVideo;
+        let thirdVideoLoaded = false;
+        let skipIntro = false;
+        
+        let totalSteps = 0;
+        let totalFriends = 0;
+        let friendNames = [];
+        let journalStartTime = 0;
+        let gamePhase = 'intro';
+        let restartButtonHovered = false;
+        let pauseButtonHovered = false;
+        let helpButtonHovered = false;
+        let missionPausedStartTime = 0;
+        let missionPausedTime = 0;
+        
+        let audioContext;
+        let soundEnabled = true;
+        
+        let eatSound1, eatSound2, eatSound3;
+        let eatSoundsLoaded = [false, false, false];
+        
+        let starSound1, starSound2, starSound3;
+        let starSoundsLoaded = [false, false, false];
+        
+        let journalSound;
+        let journalSoundLoaded = false;
+        let journalSoundPlayed = false;
+        
+        let dustSound;
+        let dustSoundLoaded = false;
+        
+        let mergeSound;
+        let mergeSoundLoaded = false;
+        
+        let missionCompleteSound;
+        let missionCompleteSoundLoaded = false;
+        let missionCompleteSoundPlayed = false;
+        
+        let bgMusic;
+        let bgMusicLoaded = false;
+        
+        let mouseTrail = [];
+        let mouseParticles = [];
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let isMouseMoved = false;
+        let mouseFrameCount = 0;
+        
+        class PlayerDrop {
+            constructor(worldX, worldY, radius) {
+                this.worldX = worldX;
+                this.worldY = worldY;
+                this.radius = radius;
+                this.targetRadius = radius;
+                this.radiusChangeStartTime = 0;
+                this.radiusChangeStartValue = radius;
+                this.isRadiusChanging = false;
+            }
+            
+            get screenX() {
+                return CANVAS_CENTER_X;
+            }
+            
+            get screenY() {
+                return CANVAS_CENTER_Y;
+            }
+            
+            setRadius(newRadius) {
+                this.targetRadius = constrain(newRadius, PLAYER_INITIAL_RADIUS, PLAYER_MAX_RADIUS);
+                this.radiusChangeStartValue = this.radius;
+                this.radiusChangeStartTime = millis();
+                this.isRadiusChanging = true;
+            }
+            
+            updateRadius() {
+                if (!this.isRadiusChanging) return;
+                
+                const elapsed = millis() - this.radiusChangeStartTime;
+                const duration = 300;
+                const progress = constrain(elapsed / duration, 0, 1);
+                const eased = easeInOutQuad(progress);
+                
+                this.radius = lerp(this.radiusChangeStartValue, this.targetRadius, eased);
+                
+                if (progress >= 1) {
+                    this.isRadiusChanging = false;
+                    this.radius = this.targetRadius;
+                }
+            }
+            
+            display() {
+                const displayRadius = this.radius;
+                
+                if (activePartners >= MAX_FUSIONS) {
+                    const glowRadius = displayRadius * 1.3;
+                    const pulse = sin(millis() * 0.002) * 0.15 + 1;
+                    const glowPulse = glowRadius * pulse;
+                    
+                    fill(255, 215, 100, 30);
+                    noStroke();
+                    ellipse(this.screenX, this.screenY, glowPulse * 2.5, glowPulse * 2.5);
+                    
+                    fill(255, 215, 100, 50);
+                    noStroke();
+                    ellipse(this.screenX, this.screenY, glowPulse * 2, glowPulse * 2);
+                    
+                    fill(255, 230, 150, 30);
+                    noStroke();
+                    ellipse(this.screenX, this.screenY, glowPulse * 1.5, glowPulse * 1.5);
+                }
+                
+                fill(255, 215, 100, 220);
+                stroke(255, 230, 150, 200);
+                strokeWeight(1);
+                ellipse(this.screenX, this.screenY, displayRadius * 2, displayRadius * 2);
+                
+                const highlightAlpha = activePartners >= MAX_FUSIONS ? 195 : 150;
+                fill(255, 255, 255, highlightAlpha);
+                ellipse(this.screenX - displayRadius * 0.3, this.screenY - displayRadius * 0.3, 
+                        displayRadius * 0.4, displayRadius * 0.4);
+                
+                if (activePartners >= MAX_FUSIONS) {
+                    fill(255, 255, 255, 220);
+                    ellipse(this.screenX - displayRadius * 0.25, this.screenY - displayRadius * 0.25, 
+                            displayRadius * 0.35, displayRadius * 0.35);
+                }
+            }
+            
+            moveTo(targetWorldX, targetWorldY) {
+                moveStartPos = { worldX: this.worldX, worldY: this.worldY };
+                moveTargetPos = { worldX: targetWorldX, worldY: targetWorldY };
+                moveStartTime = millis();
+                isMoving = true;
+            }
+            
+            updateMovement() {
+                if (!isMoving) return;
+                
+                const elapsed = millis() - moveStartTime;
+                const progress = constrain(elapsed / MOVE_DURATION, 0, 1);
+                const eased = easeInOutQuad(progress);
+                
+                this.worldX = lerp(moveStartPos.worldX, moveTargetPos.worldX, eased);
+                this.worldY = lerp(moveStartPos.worldY, moveTargetPos.worldY, eased);
+                
+                if (!isPaused && !manualPaused && millis() - lastTrailTime > 50) {
+                    trails.push({
+                        worldX: this.worldX,
+                        worldY: this.worldY,
+                        startTime: millis(),
+                        radius: this.radius
+                    });
+                    lastTrailTime = millis();
+                }
+                
+                if (progress >= 1) {
+                    isMoving = false;
+                }
+            }
+            
+            increaseRadius() {
+                // 吞噬普通小水珠时体积没有变化
+            }
+            
+            displayHighlighted() {
+                fill(255, 215, 100, 220);
+                stroke(255, 255, 255, 150);
+                strokeWeight(2);
+                ellipse(this.screenX, this.screenY, this.radius * 2 + 4, this.radius * 2 + 4);
+                
+                fill(255, 215, 100, 220);
+                stroke(255, 230, 150, 200);
+                strokeWeight(1);
+                ellipse(this.screenX, this.screenY, this.radius * 2, this.radius * 2);
+                
+                fill(255, 255, 255, 150);
+                ellipse(this.screenX - this.radius * 0.3, this.screenY - this.radius * 0.3, 
+                        this.radius * 0.4, this.radius * 0.4);
+            }
+            
+            distanceTo(other) {
+                return dist(this.worldX, this.worldY, other.worldX, other.worldY);
+            }
+        }
+        
+        let aiIdCounter = 0;
+        
+        class AIDrop {
+            constructor(worldX, worldY, radius) {
+                this.worldX = worldX;
+                this.worldY = worldY;
+                this.radius = radius;
+                this.isMoving = false;
+                this.moveStartPos = null;
+                this.moveTargetPos = null;
+                this.moveStartTime = 0;
+                this.lastMoveTime = millis() + random(AI_MOVE_OFFSET);
+                this.moveInterval = random(400, 1000);
+                this.name = AI_NAMES[floor(random(AI_NAMES.length))];
+                this.id = aiIdCounter++;
+                this.hasFusedWithPlayer = false;
+                this.stuckTime = 0;
+            }
+            
+            getScreenPos() {
+                const offsetX = player.worldX - CANVAS_CENTER_X;
+                const offsetY = player.worldY - CANVAS_CENTER_Y;
+                return {
+                    x: this.worldX - offsetX,
+                    y: this.worldY - offsetY
+                };
+            }
+            
+            isOnScreen() {
+                const pos = this.getScreenPos();
+                return pos.x > -100 && pos.x < CANVAS_WIDTH + 100 &&
+                       pos.y > -100 && pos.y < CANVAS_HEIGHT + 100;
+            }
+            
+            display() {
+                const pos = this.getScreenPos();
+                
+                fill(180, 220, 230, 200);
+                stroke(200, 240, 255, 180);
+                strokeWeight(1);
+                ellipse(pos.x, pos.y, this.radius * 2, this.radius * 2);
+                
+                fill(255, 255, 255, 150);
+                ellipse(pos.x - this.radius * 0.3, pos.y - this.radius * 0.3, 
+                        this.radius * 0.4, this.radius * 0.4);
+                
+                fill(200, 230, 240, 100);
+                ellipse(pos.x + this.radius * 0.2, pos.y + this.radius * 0.2, 
+                        this.radius * 0.25, this.radius * 0.25);
+                
+                const elapsed = millis() - this.lastMoveTime;
+                const progress = (elapsed / MOVE_INTERVAL) % 1;
+                const pulseAlpha = 30 + sin(progress * TWO_PI) * 20;
+                stroke(200, 240, 255, pulseAlpha);
+                strokeWeight(0.5);
+                noFill();
+                ellipse(pos.x, pos.y, (this.radius + 2) * 2, (this.radius + 2) * 2);
+            }
+            
+            displayHighlighted() {
+                const pos = this.getScreenPos();
+                
+                fill(180, 220, 230, 200);
+                stroke(255, 255, 255, 150);
+                strokeWeight(2);
+                ellipse(pos.x, pos.y, this.radius * 2 + 4, this.radius * 2 + 4);
+                
+                fill(180, 220, 230, 200);
+                stroke(200, 240, 255, 180);
+                strokeWeight(1);
+                ellipse(pos.x, pos.y, this.radius * 2, this.radius * 2);
+                
+                fill(255, 255, 255, 150);
+                ellipse(pos.x - this.radius * 0.3, pos.y - this.radius * 0.3, 
+                        this.radius * 0.4, this.radius * 0.4);
+                
+                fill(200, 230, 240, 100);
+                ellipse(pos.x + this.radius * 0.2, pos.y + this.radius * 0.2, 
+                        this.radius * 0.25, this.radius * 0.25);
+            }
+            
+            moveTo(targetWorldX, targetWorldY) {
+                this.moveStartPos = { worldX: this.worldX, worldY: this.worldY };
+                this.moveTargetPos = { worldX: targetWorldX, worldY: targetWorldY };
+                this.moveStartTime = millis();
+                this.isMoving = true;
+            }
+            
+            updateMovement() {
+                if (!this.isMoving) return;
+                
+                const elapsed = millis() - this.moveStartTime;
+                const progress = constrain(elapsed / MOVE_DURATION, 0, 1);
+                const eased = easeInOutQuad(progress);
+                
+                this.worldX = lerp(this.moveStartPos.worldX, this.moveTargetPos.worldX, eased);
+                this.worldY = lerp(this.moveStartPos.worldY, this.moveTargetPos.worldY, eased);
+                
+                if (progress >= 1) {
+                    this.isMoving = false;
+                }
+            }
+            
+            increaseRadius() {
+                this.radius = min(this.radius + AI_RADIUS_INCREMENT, AI_MAX_RADIUS);
+            }
+            
+            findTargetDrop() {
+                const candidates = drops.filter(d => 
+                    d.worldX <= this.worldX && d.worldY >= this.worldY
+                );
+                
+                if (candidates.length === 0) {
+                    return null;
+                }
+                
+                let nearest = candidates[0];
+                let minDist = dist(this.worldX, this.worldY, nearest.worldX, nearest.worldY);
+                
+                for (let d of candidates) {
+                    const dDist = dist(this.worldX, this.worldY, d.worldX, d.worldY);
+                    if (dDist < minDist) {
+                        minDist = dDist;
+                        nearest = d;
+                    }
+                }
+                
+                return nearest;
+            }
+            
+            performMove() {
+                const target = this.findTargetDrop();
+                
+                if (!target) {
+                    this.stuckTime += this.moveInterval;
+                    return;
+                }
+                
+                this.stuckTime = 0;
+                
+                const targetScreenPos = target.getScreenPos();
+                ripples.push(new Ripple(targetScreenPos.x, targetScreenPos.y));
+                
+                for (let i = 0; i < random(3, 6); i++) {
+                    const angle = random(TWO_PI);
+                    const speed = random(2, 5);
+                    particles.push(new Particle(targetScreenPos.x, targetScreenPos.y, angle, speed));
+                }
+                
+                this.moveTo(target.worldX, target.worldY);
+                this.increaseRadius();
+                
+                const idx = drops.indexOf(target);
+                if (idx > -1) {
+                    drops.splice(idx, 1);
+                }
+                
+                this.lastMoveTime = millis();
+                this.moveInterval = random(400, 1000);
+            }
+            
+            update() {
+                this.updateMovement();
+                
+                const currentTime = millis();
+                if (currentTime - this.lastMoveTime >= this.moveInterval && !this.isMoving) {
+                    this.performMove();
+                }
+            }
+        }
+        
+        class NormalDrop {
+            constructor(worldX, worldY, radius, hasStar = false, hasDust = false) {
+                this.worldX = worldX;
+                this.worldY = worldY;
+                this.radius = radius;
+                this.opacity = 200;
+                this.hasStar = hasStar;
+                this.hasDust = hasDust;
+                this.starColor = hasStar ? [random(255), random(255), random(200, 255)] : null;
+            }
+            
+            getScreenPos() {
+                const offsetX = player.worldX - CANVAS_CENTER_X;
+                const offsetY = player.worldY - CANVAS_CENTER_Y;
+                return {
+                    x: this.worldX - offsetX,
+                    y: this.worldY - offsetY
+                };
+            }
+            
+            isOnScreen() {
+                const pos = this.getScreenPos();
+                return pos.x > -50 && pos.x < CANVAS_WIDTH + 50 &&
+                       pos.y > -50 && pos.y < CANVAS_HEIGHT + 50;
+            }
+            
+            display() {
+                const pos = this.getScreenPos();
+                
+                if (this.hasStar) {
+                    this.drawStar(pos.x, pos.y, 5, this.radius * 1.5, this.radius * 0.6);
+                    return;
+                }
+                
+                if (this.hasDust) {
+                    fill(100, 90, 80, this.opacity);
+                    stroke(120, 110, 100, 180);
+                } else {
+                    fill(180, 220, 255, this.opacity);
+                    stroke(200, 230, 255, 180);
+                }
+                strokeWeight(0.5);
+                ellipse(pos.x, pos.y, this.radius * 2, this.radius * 2);
+                
+                fill(255, 255, 255, 100);
+                ellipse(pos.x - this.radius * 0.25, pos.y - this.radius * 0.25, 
+                        this.radius * 0.3, this.radius * 0.3);
+                
+                if (this.hasDust) {
+                    fill(160, 140, 120, 180);
+                    textSize(this.radius * 0.7);
+                    textAlign(CENTER, CENTER);
+                    text('*', pos.x, pos.y + 1);
+                }
+            }
+            
+            drawStar(x, y, numPoints, outerRadius, innerRadius) {
+                const [r, g, b] = this.starColor || [255, 255, 200];
+                
+                const pulse = sin(millis() * 0.003) * 0.3 + 0.7;
+                const glowAlpha = 30 + pulse * 25;
+                
+                const glowRadius1 = outerRadius * 4 * pulse;
+                fill(r, g, b, glowAlpha);
+                noStroke();
+                ellipse(x, y, glowRadius1, glowRadius1);
+                
+                const glowRadius2 = outerRadius * 3 * pulse;
+                fill(r, g, b + 30, glowAlpha * 0.9);
+                ellipse(x, y, glowRadius2, glowRadius2);
+                
+                const glowRadius3 = outerRadius * 2.2 * pulse;
+                fill(r + 20, g + 20, b + 50, glowAlpha * 0.7);
+                ellipse(x, y, glowRadius3, glowRadius3);
+                
+                const glowRadius4 = outerRadius * 1.5 * pulse;
+                fill(r + 40, g + 40, b + 60, glowAlpha * 0.5);
+                ellipse(x, y, glowRadius4, glowRadius4);
+                
+                fill(r, g, b, 220);
+                stroke(r + 20, g + 20, b + 20, 180);
+                strokeWeight(0.5);
+                
+                beginShape();
+                for (let i = 0; i < numPoints * 2; i++) {
+                    const angle = TWO_PI * i / (numPoints * 2) - HALF_PI;
+                    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                    const px = x + cos(angle) * radius;
+                    const py = y + sin(angle) * radius;
+                    vertex(px, py);
+                }
+                endShape(CLOSE);
+                
+                const highlightSize = outerRadius * 0.3 * (0.8 + pulse * 0.4);
+                fill(255, 255, 255, 150 + pulse * 50);
+                ellipse(x - outerRadius * 0.2, y - outerRadius * 0.2, highlightSize, highlightSize);
+                
+                fill(255, 255, 255, 120 + pulse * 40);
+                ellipse(x - outerRadius * 0.15, y - outerRadius * 0.15, highlightSize * 0.7, highlightSize * 0.7);
+            }
+            
+            distanceTo(other) {
+                if (other instanceof PlayerDrop) {
+                    return dist(this.worldX, this.worldY, other.worldX, other.worldY);
+                }
+                return dist(this.worldX, this.worldY, other.worldX, other.worldY);
+            }
+        }
+        
+        class Particle {
+            constructor(x, y, angle, speed, isAwakened = false) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speed = speed;
+                this.life = 1;
+                this.size = random(1, 4);
+                this.isAwakened = isAwakened;
+            }
+            
+            update() {
+                this.x += cos(this.angle) * this.speed;
+                this.y += sin(this.angle) * this.speed;
+                this.life -= this.isAwakened ? 0.025 : 0.03;
+            }
+            
+            display() {
+                if (this.life <= 0) return;
+                
+                if (this.isAwakened) {
+                    fill(255, 215, 100, this.life * 200);
+                } else {
+                    fill(255, 255, 255, this.life * 150);
+                }
+                noStroke();
+                ellipse(this.x, this.y, this.size, this.size);
+            }
+        }
+        
+        class Ripple {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 0;
+                this.maxRadius = 30;
+                this.life = 1;
+            }
+            
+            update() {
+                this.radius += 1.5;
+                this.life -= 0.05;
+            }
+            
+            display() {
+                if (this.life <= 0) return;
+                stroke(200, 230, 255, this.life * 100);
+                strokeWeight(1);
+                noFill();
+                ellipse(this.x, this.y, this.radius * 2, this.radius * 2);
+            }
+        }
+        
+        function easeInOutQuad(t) {
+            return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        }
+        
+        function createDrops() {
+            drops = [];
+            const worldCenterX = CANVAS_CENTER_X;
+            const worldCenterY = CANVAS_CENTER_Y;
+            const gridSize = 40;
+            const minDropDistance = 28;
+            const viewWidth = CANVAS_WIDTH + 600;
+            const viewHeight = CANVAS_HEIGHT + 600;
+            const cols = Math.ceil(viewWidth / gridSize);
+            const rows = Math.ceil(viewHeight / gridSize);
+            const startCol = Math.floor((worldCenterX - viewWidth / 2) / gridSize);
+            const startRow = Math.floor((worldCenterY - viewHeight / 2) / gridSize);
+            
+            const avoidRadius = Math.ceil(60 / gridSize);
+            const avoidCenterCol = Math.floor(worldCenterX / gridSize);
+            const avoidCenterRow = Math.floor(150 / gridSize);
+            
+            const gridCells = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const worldR = startRow + r;
+                    const worldC = startCol + c;
+                    const distToAvoid = dist(worldC, worldR, avoidCenterCol, avoidCenterRow);
+                    if (distToAvoid > avoidRadius) {
+                        gridCells.push({ r: worldR, c: worldC });
+                    }
+                }
+            }
+            
+            const targetDrops = INITIAL_DROPS_COUNT;
+            const step = Math.max(1, Math.floor(gridCells.length / targetDrops));
+            
+            for (let i = 0; i < gridCells.length && drops.length < targetDrops; i += step) {
+                const cell = gridCells[i];
+                const worldX = cell.c * gridSize + gridSize / 2 + random(-gridSize / 5, gridSize / 5);
+                const worldY = cell.r * gridSize + gridSize / 2 + random(-gridSize / 5, gridSize / 5);
+                const radius = random(MIN_DROP_RADIUS, MAX_DROP_RADIUS);
+                
+                let valid = true;
+                for (const d of drops) {
+                    if (dist(worldX, worldY, d.worldX, d.worldY) < minDropDistance) {
+                        valid = false;
+                        break;
+                    }
+                }
+                
+                if (valid) {
+                    const hasStar = random() < 0.1;
+                    const hasDust = !hasStar && random() < 0.06;
+                    drops.push(new NormalDrop(worldX, worldY, radius, hasStar, hasDust));
+                }
+            }
+            
+            let attempt = 0;
+            const maxAttempts = 500;
+            while (drops.length < targetDrops && attempt < maxAttempts) {
+                attempt++;
+                const randomCell = gridCells[floor(random(gridCells.length))];
+                const worldX = randomCell.c * gridSize + gridSize / 2 + random(-gridSize / 4, gridSize / 4);
+                const worldY = randomCell.r * gridSize + gridSize / 2 + random(-gridSize / 4, gridSize / 4);
+                const radius = random(MIN_DROP_RADIUS, MAX_DROP_RADIUS);
+                
+                let valid = true;
+                for (const d of drops) {
+                    if (dist(worldX, worldY, d.worldX, d.worldY) < minDropDistance) {
+                        valid = false;
+                        break;
+                    }
+                }
+                
+                if (valid) {
+                    const hasStar = random() < 0.1;
+                    const hasDust = !hasStar && random() < 0.06;
+                    drops.push(new NormalDrop(worldX, worldY, radius, hasStar, hasDust));
+                }
+            }
+        }
+        
+        function spawnNewDrop() {
+            const angle = random(TWO_PI);
+            const dist = random(200, 350);
+            const worldX = player.worldX + cos(angle) * dist;
+            const worldY = player.worldY + sin(angle) * dist;
+            const radius = random(MIN_DROP_RADIUS, MAX_DROP_RADIUS);
+            const hasStar = random() < 0.08;
+            const hasDust = !hasStar && random() < 0.05;
+            drops.push(new NormalDrop(worldX, worldY, radius, hasStar, hasDust));
+        }
+        
+        function spawnAIDrop() {
+            const offsetX = player.worldX - CANVAS_CENTER_X;
+            const offsetY = player.worldY - CANVAS_CENTER_Y;
+            
+            let worldX, worldY;
+            if (random() > 0.5) {
+                worldX = CANVAS_WIDTH + 50 + offsetX;
+                worldY = random(-50, CANVAS_HEIGHT / 2) + offsetY;
+            } else {
+                worldX = random(CANVAS_WIDTH / 2, CANVAS_WIDTH + 50) + offsetX;
+                worldY = -50 + offsetY;
+            }
+            
+            const radius = random(AI_INITIAL_RADIUS_MIN, AI_INITIAL_RADIUS_MAX);
+            return new AIDrop(worldX, worldY, radius);
+        }
+        
+        function createAIDrops() {
+            aiDrops = [];
+            for (let i = 0; i < AI_COUNT_MIN; i++) {
+                aiDrops.push(spawnAIDrop());
+            }
+        }
+        
+        function manageAIDrops() {
+            const beforeCount = aiDrops.length;
+            const STUCK_THRESHOLD = 3000;
+            
+            for (let i = aiDrops.length - 1; i >= 0; i--) {
+                const ai = aiDrops[i];
+                
+                if (!ai.isOnScreen()) {
+                    aiDrops.splice(i, 1);
+                    continue;
+                }
+                
+                const pos = ai.getScreenPos();
+                const isInBottomLeft = pos.x < CANVAS_WIDTH * 0.3 && pos.y > CANVAS_HEIGHT * 0.7;
+                
+                if (ai.stuckTime >= STUCK_THRESHOLD || isInBottomLeft) {
+                    aiDrops.splice(i, 1);
+                    continue;
+                }
+            }
+            
+            const removedCount = beforeCount - aiDrops.length;
+            
+            for (let i = 0; i < removedCount && aiDrops.length < AI_COUNT_MAX; i++) {
+                aiDrops.push(spawnAIDrop());
+            }
+            
+            while (aiDrops.length < AI_COUNT_MIN) {
+                aiDrops.push(spawnAIDrop());
+            }
+        }
+        
+        function checkMeeting() {
+            if (isPaused || manualPaused || millis() < cooldownEndTime || aiDrops.length === 0 || fusedAIs.length >= MAX_FUSIONS) {
+                return;
+            }
+            
+            let nearestAI = null;
+            let minDist = Infinity;
+            
+            for (const ai of aiDrops) {
+                if (ai.hasFusedWithPlayer) {
+                    continue;
+                }
+                
+                const dist = player.distanceTo(ai);
+                const maxDist = (player.radius + ai.radius) * MEETING_DISTANCE_MULTIPLIER;
+                
+                if (dist <= maxDist && dist < minDist) {
+                    minDist = dist;
+                    nearestAI = ai;
+                }
+            }
+            
+            if (nearestAI) {
+                triggerMeeting(nearestAI);
+            }
+        }
+        
+        function triggerMeeting(ai) {
+            isPaused = true;
+            meetingAI = ai;
+            pauseStartTime = millis();
+            longPressStartTime = 0;
+            
+            const randomIndex = floor(random(greetingMessages.length));
+            currentGreeting = greetingMessages[randomIndex];
+        }
+        
+        function endMeeting(fuse = false) {
+            if (fuse && meetingAI) {
+                const aiIdx = aiDrops.indexOf(meetingAI);
+                if (aiIdx > -1) {
+                    const aiRadius = meetingAI.radius;
+                    const newRadius = player.targetRadius + aiRadius * 0.3;
+                    player.setRadius(newRadius);
+                    
+                    const aiScreenPos = meetingAI.getScreenPos();
+                    ripples.push(new Ripple(aiScreenPos.x, aiScreenPos.y));
+                    
+                    for (let i = 0; i < random(5, 8); i++) {
+                        const angle = random(TWO_PI);
+                        const speed = random(3, 7);
+                        particles.push(new Particle(aiScreenPos.x, aiScreenPos.y, angle, speed));
+                    }
+                    
+                    fusionPopup = {
+                        name: meetingAI.name,
+                        startTime: millis()
+                    };
+                    
+                    fusedAIs.push({
+                        originalRadius: aiRadius,
+                        endTime: millis() + FUSION_DURATION,
+                        name: meetingAI.name,
+                        aiId: meetingAI.id,
+                        splitWorldX: player.worldX,
+                        splitWorldY: player.worldY
+                    });
+                    
+                    if (meetingAI) {
+                        totalFriends++;
+                        friendNames.push(meetingAI.name);
+                        
+                        if (mergeSoundLoaded && mergeSound) {
+                            try {
+                                mergeSound.setVolume(0.6);
+                                mergeSound.play();
+                            } catch (e) {
+                                console.log('Merge sound play failed');
+                            }
+                        }
+                    }
+                    
+                    const prevActivePartners = activePartners;
+                    activePartners = fusedAIs.length;
+                    
+                    if (activePartners >= MAX_FUSIONS && prevActivePartners < MAX_FUSIONS) {
+                        moveMode = 'mouse';
+                        
+                        for (let i = 0; i < 30; i++) {
+                            const angle = random(TWO_PI);
+                            const speed = random(2, 6);
+                            particles.push(new Particle(CANVAS_CENTER_X, CANVAS_CENTER_Y, angle, speed, true));
+                        }
+                        
+                        ripples.push(new Ripple(CANVAS_CENTER_X, CANVAS_CENTER_Y));
+                        ripples.push(new Ripple(CANVAS_CENTER_X, CANVAS_CENTER_Y));
+                        
+                        awakeningFlashEndTime = millis() + 300;
+                    }
+                    
+                    let interval = MOVE_INTERVAL - fusedAIs.length * FUSION_INTERVAL_REDUCTION;
+                    if (activePartners >= MAX_FUSIONS) {
+                        interval -= 200;
+                    }
+                    playerMoveInterval = max(interval, 500);
+                    
+                    aiDrops.splice(aiIdx, 1);
+                    aiDrops.push(spawnAIDrop());
+                }
+            }
+            
+            isPaused = false;
+            meetingAI = null;
+            currentGreeting = '';
+            cooldownEndTime = millis() + COOLDOWN_DURATION;
+        }
+        
+        function updateFusions() {
+            const currentTime = millis();
+            
+            for (let i = fusedAIs.length - 1; i >= 0; i--) {
+                const fused = fusedAIs[i];
+                
+                if (currentTime >= fused.endTime) {
+                    const newRadius = player.targetRadius - fused.originalRadius * 0.3;
+                    player.setRadius(newRadius);
+                    
+                    leavePopup = {
+                        name: fused.name,
+                        startTime: millis()
+                    };
+                    
+                    const splitAI = new AIDrop(fused.splitWorldX, fused.splitWorldY, fused.originalRadius);
+                    splitAI.hasFusedWithPlayer = true;
+                    aiDrops.push(splitAI);
+                    
+                    for (let j = 0; j < random(3, 5); j++) {
+                        const angle = random(TWO_PI);
+                        const speed = random(2, 4);
+                        const screenX = CANVAS_CENTER_X;
+                        const screenY = CANVAS_CENTER_Y;
+                        particles.push(new Particle(screenX, screenY, angle, speed));
+                    }
+                    
+                    fusedAIs.splice(i, 1);
+                    
+                    const prevActivePartners = activePartners;
+                    activePartners = fusedAIs.length;
+                    
+                    if (prevActivePartners >= MAX_FUSIONS && activePartners < MAX_FUSIONS && moveMode === 'mouse') {
+                        moveMode = 'key';
+                    }
+                    
+                    let interval = MOVE_INTERVAL - fusedAIs.length * FUSION_INTERVAL_REDUCTION;
+                    if (activePartners >= MAX_FUSIONS) {
+                        interval -= 200;
+                    }
+                    playerMoveInterval = max(interval, 500);
+                }
+            }
+        }
+        
+        function updateMeeting() {
+            if (!isPaused || !meetingAI) return;
+            
+            const elapsed = millis() - pauseStartTime;
+            
+            if (elapsed >= PAUSE_DURATION) {
+                endMeeting(false);
+                return;
+            }
+            
+            if (longPressStartTime > 0) {
+                const pressDuration = millis() - longPressStartTime;
+                if (pressDuration >= LONG_PRESS_THRESHOLD) {
+                    endMeeting(true);
+                    longPressStartTime = 0;
+                    return;
+                }
+            }
+            
+            if (touchLongPressStartTime > 0) {
+                const pressDuration = millis() - touchLongPressStartTime;
+                if (pressDuration >= LONG_PRESS_THRESHOLD) {
+                    endMeeting(true);
+                    touchLongPressStartTime = 0;
+                    return;
+                }
+            }
+        }
+        
+        function displayMeetingUI() {
+            if (!isPaused || !meetingAI) return;
+            
+            const elapsed = millis() - pauseStartTime;
+            const remaining = PAUSE_DURATION - elapsed;
+            const progress = elapsed / PAUSE_DURATION;
+            
+            player.displayHighlighted();
+            meetingAI.displayHighlighted();
+            
+            const aiScreenPos = meetingAI.getScreenPos();
+            const lineAlpha = 100 + sin(millis() * 0.01) * 50;
+            stroke(200, 230, 255, lineAlpha);
+            strokeWeight(1);
+            line(CANVAS_CENTER_X, CANVAS_CENTER_Y, aiScreenPos.x, aiScreenPos.y);
+            
+            fill(255, 255, 255, 150);
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text('长按左键融合', CANVAS_CENTER_X, CANVAS_CENTER_Y - 80 - player.radius * 2);
+            
+            const ringX = CANVAS_CENTER_X;
+            const ringY = 55;
+            const ringRadius = 16;
+            
+            push();
+            stroke(255, 255, 255, 80);
+            strokeWeight(1.5);
+            noFill();
+            ellipse(ringX, ringY, ringRadius * 2, ringRadius * 2);
+            
+            stroke(200, 230, 255, 150);
+            strokeWeight(1.5);
+            const startAngle = HALF_PI;
+            const endAngle = startAngle - map(elapsed, 0, PAUSE_DURATION, 0, TWO_PI);
+            arc(ringX, ringY, ringRadius * 2, ringRadius * 2, endAngle, startAngle);
+            pop();
+            
+            if (currentGreeting) {
+                displayGreetingDialog(aiScreenPos.x, aiScreenPos.y - meetingAI.radius - 20);
+            }
+        }
+        
+        function displayGreetingDialog(x, y) {
+            const padding = 12;
+            textSize(14);
+            text(currentGreeting, 0, 0);
+            const textW = textWidth(currentGreeting);
+            const boxWidth = max(textW + padding * 2, 80);
+            const boxHeight = 40;
+            
+            const boxX = x - boxWidth / 2;
+            const boxY = y - boxHeight;
+            
+            fill(255, 255, 255, 220);
+            stroke(200, 200, 200, 200);
+            strokeWeight(1);
+            rect(boxX, boxY, boxWidth, boxHeight, 8);
+            
+            fill(0);
+            textAlign(CENTER, CENTER);
+            text(currentGreeting, x, boxY + boxHeight / 2);
+            
+            fill(255, 255, 255, 220);
+            stroke(200, 200, 200, 200);
+            strokeWeight(1);
+            triangle(
+                x - 10, boxY + boxHeight,
+                x + 10, boxY + boxHeight,
+                x, boxY + boxHeight + 8
+            );
+        }
+        
+        function displayStartDialog() {
+            if (!showStartDialog) return;
+            
+            const currentTime = millis();
+            if (currentTime >= startDialogEndTime) {
+                showStartDialog = false;
+                return;
+            }
+            
+            const message = '原来不止我一个水珠在赶路呀，要不靠近他们试试？';
+            const padding = 15;
+            const textSizeValue = 14;
+            const maxWidth = 200;
+            
+            textSize(textSizeValue);
+            textAlign(LEFT, TOP);
+            
+            const words = message.split('');
+            let lines = [];
+            let currentLine = '';
+            
+            for (const char of words) {
+                const testLine = currentLine + char;
+                if (textWidth(testLine) <= maxWidth - padding * 2) {
+                    currentLine = testLine;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = char;
+                }
+            }
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            
+            const boxWidth = maxWidth;
+            const boxHeight = lines.length * (textSizeValue + 6) + padding * 2;
+            
+            const boxX = CANVAS_CENTER_X - boxWidth / 2;
+            const boxY = CANVAS_CENTER_Y - player.radius - boxHeight - 15;
+            
+            fill(255, 255, 255, 230);
+            stroke(200, 200, 200, 200);
+            strokeWeight(1.5);
+            rect(boxX, boxY, boxWidth, boxHeight, 12);
+            
+            fill(0);
+            textAlign(LEFT, TOP);
+            let y = boxY + padding;
+            for (const line of lines) {
+                text(line, boxX + padding, y);
+                y += textSizeValue + 6;
+            }
+            
+            fill(255, 255, 255, 230);
+            stroke(200, 200, 200, 200);
+            strokeWeight(1.5);
+            triangle(
+                CANVAS_CENTER_X - 12, boxY + boxHeight,
+                CANVAS_CENTER_X + 12, boxY + boxHeight,
+                CANVAS_CENTER_X, boxY + boxHeight + 10
+            );
+        }
+        
+        function displayDustWarning() {
+            if (!showDustWarning) return;
+            
+            const currentTime = millis();
+            if (currentTime >= dustWarningEndTime) {
+                showDustWarning = false;
+                return;
+            }
+            
+            const message = '灰尘使我行动变得艰难了';
+            const padding = 12;
+            const textSizeValue = 14;
+            
+            textSize(textSizeValue);
+            const textW = textWidth(message);
+            const boxWidth = max(textW + padding * 2, 120);
+            const boxHeight = 40;
+            
+            const boxX = CANVAS_CENTER_X - boxWidth / 2;
+            const boxY = CANVAS_CENTER_Y - player.radius - boxHeight - 20;
+            
+            fill(180, 170, 160, 230);
+            stroke(120, 110, 100, 200);
+            strokeWeight(1.5);
+            rect(boxX, boxY, boxWidth, boxHeight, 10);
+            
+            fill(50, 40, 30);
+            textAlign(CENTER, CENTER);
+            text(message, CANVAS_CENTER_X, boxY + boxHeight / 2);
+            
+            fill(180, 170, 160, 230);
+            stroke(120, 110, 100, 200);
+            strokeWeight(1.5);
+            triangle(
+                CANVAS_CENTER_X - 10, boxY + boxHeight,
+                CANVAS_CENTER_X + 10, boxY + boxHeight,
+                CANVAS_CENTER_X, boxY + boxHeight + 8
+            );
+        }
+        
+        function displayFusionPopup() {
+            if (!fusionPopup) return;
+            
+            const age = millis() - fusionPopup.startTime;
+            if (age > 2000) {
+                fusionPopup = null;
+                return;
+            }
+            
+            const alpha = map(age, 0, 2000, 255, 0);
+            const offsetY = map(age, 0, 2000, 0, -40);
+            
+            fill(255, 215, 100, alpha);
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text(`与 ${fusionPopup.name} 融为一体，旅途不再孤单`, CANVAS_CENTER_X, CANVAS_CENTER_Y + offsetY);
+        }
+        
+        function displayLeavePopup() {
+            if (!leavePopup) return;
+            
+            const age = millis() - leavePopup.startTime;
+            if (age > 2000) {
+                leavePopup = null;
+                return;
+            }
+            
+            const alpha = map(age, 0, 2000, 255, 0);
+            const offsetY = map(age, 0, 2000, 0, -40);
+            
+            fill(200, 200, 200, alpha);
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text(`${leavePopup.name} 离开了`, CANVAS_CENTER_X, CANVAS_CENTER_Y + offsetY);
+        }
+        
+        function findTargetDrop() {
+            let candidates = [];
+            
+            if (moveMode === 'mouse') {
+                candidates = drops.slice().sort((a, b) => {
+                    const distA = a.distanceTo(player);
+                    const distB = b.distanceTo(player);
+                    return distA - distB;
+                }).slice(0, 5);
+                
+                if (candidates.length === 0) {
+                    return null;
+                }
+                
+                const mouseDirX = mouseX - CANVAS_CENTER_X;
+                const mouseDirY = mouseY - CANVAS_CENTER_Y;
+                const mouseAngle = atan2(mouseDirY, mouseDirX);
+                
+                let bestDrop = candidates[0];
+                let minAngleDiff = Infinity;
+                let minDist = Infinity;
+                
+                const offsetX = player.worldX - CANVAS_CENTER_X;
+                const offsetY = player.worldY - CANVAS_CENTER_Y;
+                
+                for (let d of candidates) {
+                    const screenX = d.worldX - offsetX;
+                    const screenY = d.worldY - offsetY;
+                    
+                    const dropDirX = screenX - CANVAS_CENTER_X;
+                    const dropDirY = screenY - CANVAS_CENTER_Y;
+                    const dropAngle = atan2(dropDirY, dropDirX);
+                    
+                    let angleDiff = abs(dropAngle - mouseAngle);
+                    if (angleDiff > PI) {
+                        angleDiff = TWO_PI - angleDiff;
+                    }
+                    
+                    const dist = d.distanceTo(player);
+                    
+                    if (angleDiff < minAngleDiff) {
+                        minAngleDiff = angleDiff;
+                        minDist = dist;
+                        bestDrop = d;
+                    } else if (abs(angleDiff - minAngleDiff) <= 0.05) {
+                        if (dist < minDist) {
+                            minDist = dist;
+                            bestDrop = d;
+                        }
+                    }
+                }
+                
+                return bestDrop;
+            } else {
+                if (nextDir === 'left') {
+                    candidates = drops.filter(d => d.worldX < player.worldX && d.worldY > player.worldY);
+                } else if (nextDir === 'right') {
+                    candidates = drops.filter(d => d.worldX > player.worldX && d.worldY > player.worldY);
+                }
+                
+                if (candidates.length === 0) {
+                    candidates = drops.filter(d => d.worldX <= player.worldX && d.worldY >= player.worldY);
+                }
+                
+                if (candidates.length === 0) {
+                    return null;
+                }
+                
+                let nearest = candidates[0];
+                let minDist = nearest.distanceTo(player);
+                
+                for (let d of candidates) {
+                    const dist = d.distanceTo(player);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearest = d;
+                    }
+                }
+                
+                return nearest;
+            }
+        }
+        
+        function performMove() {
+            const target = findTargetDrop();
+            
+            if (!target) {
+                if (moveMode === 'mouse') {
+                    noTargetCount++;
+                    if (noTargetCount >= 3) {
+                        gameOver = true;
+                        gameOverTime = millis();
+                    }
+                    return;
+                } else {
+                    gameOver = true;
+                    gameOverTime = millis();
+                    return;
+                }
+            }
+            
+            noTargetCount = 0;
+            
+            const targetScreenPos = target.getScreenPos();
+            ripples.push(new Ripple(targetScreenPos.x, targetScreenPos.y));
+            
+            for (let i = 0; i < random(3, 6); i++) {
+                const angle = random(TWO_PI);
+                const speed = random(2, 5);
+                particles.push(new Particle(targetScreenPos.x, targetScreenPos.y, angle, speed));
+            }
+            
+            if (activePartners >= MAX_FUSIONS) {
+                for (let i = 0; i < random(8, 15); i++) {
+                    const angle = random(TWO_PI);
+                    const speed = random(3, 8);
+                    const colorIndex = floor(random(rainbowColors.length));
+                    const [r, g, b] = rainbowColors[colorIndex];
+                    awakeningParticles.push({
+                        x: CANVAS_CENTER_X,
+                        y: CANVAS_CENTER_Y,
+                        vx: cos(angle) * speed,
+                        vy: sin(angle) * speed,
+                        color: [r, g, b],
+                        size: random(3, 8),
+                        life: 1
+                    });
+                }
+                
+                if (random() > 0.3) {
+                    playBubbleSound();
+                }
+            }
+            
+            if (target.hasStar) {
+                starCount++;
+                starPopup = {
+                    worldX: target.worldX,
+                    worldY: target.worldY,
+                    startTime: millis()
+                };
+                
+                starGlowEffect.active = true;
+                starGlowEffect.color = target.starColor || [255, 255, 200];
+                starGlowEffect.endTime = millis() + 500;
+                
+                if (starCount >= STAR_GOAL) {
+                    missionComplete = true;
+                    missionCompleteTime = millis();
+                }
+            }
+            
+            if (target.hasDust) {
+                dustEffectEndTime = millis() + DUST_EFFECT_DURATION;
+                
+                if (!hasSeenDustWarning) {
+                    showDustWarning = true;
+                    dustWarningEndTime = millis() + 2500;
+                    hasSeenDustWarning = true;
+                }
+            }
+            
+            player.moveTo(target.worldX, target.worldY);
+            player.increaseRadius();
+            
+            const idx = drops.indexOf(target);
+            if (idx > -1) {
+                drops.splice(idx, 1);
+            }
+            
+            spawnNewDrop();
+            swallowCount++;
+            totalSteps++;
+            nextDir = null;
+            
+            if (target.hasStar) {
+                playRandomStarSound();
+            } else if (target.hasDust) {
+                playDustSound();
+            } else {
+                playRandomEatSound();
+            }
+        }
+        
+        function displayCountdown() {
+            const isDusty = millis() < dustEffectEndTime;
+            const currentInterval = isDusty ? playerMoveInterval + DUST_INTERVAL_INCREASE : playerMoveInterval;
+            const elapsed = millis() - lastMoveTime;
+            const progress = constrain(elapsed / currentInterval, 0, 1);
+            const remaining = currentInterval - elapsed;
+            const remainingSeconds = (remaining / 1000).toFixed(1);
+            
+            const ringX = CANVAS_CENTER_X;
+            const ringY = CANVAS_CENTER_Y - 25;
+            const ringRadius = 14;
+            
+            push();
+            if (isDusty) {
+                stroke(255, 150, 50, 100);
+            } else {
+                stroke(255, 255, 255, 100);
+            }
+            strokeWeight(2);
+            noFill();
+            ellipse(ringX, ringY, ringRadius * 2, ringRadius * 2);
+            
+            if (isDusty) {
+                stroke(255, 150, 50, 180);
+            } else {
+                stroke(255, 255, 255, 150);
+            }
+            strokeWeight(2);
+            const startAngle = HALF_PI;
+            const endAngle = startAngle - map(elapsed, 0, currentInterval, 0, TWO_PI);
+            arc(ringX, ringY, ringRadius * 2, ringRadius * 2, endAngle, startAngle);
+            
+            if (isDusty) {
+                fill(255, 150, 50, 200);
+            } else {
+                fill(255, 255, 255, 180);
+            }
+            noStroke();
+            textSize(10);
+            textAlign(CENTER, CENTER);
+            text(remainingSeconds, ringX, ringY);
+            pop();
+            
+            if (remaining < 100) {
+                fill(255, 0, 0, 100 + sin(millis() * 0.05) * 50);
+                ellipse(ringX, ringY, ringRadius * 2.5, ringRadius * 2.5);
+            }
+        }
+        
+        function displayMouseIndicators() {
+            const iconSize = 30;
+            const iconY = 670;
+            const leftX = 150;
+            const rightX = 250;
+            
+            const isAwakened = moveMode === 'mouse';
+            const isDisabled = isPaused || manualPaused || isAwakened;
+            
+            drawMouseButton(leftX, iconY, iconSize, 'L', leftMousePressed, isDisabled, true);
+            drawMouseButton(rightX, iconY, iconSize, 'R', rightMousePressed, isDisabled, false);
+        }
+        
+        function drawMouseButton(x, y, size, label, isPressed, isDisabled, isLeft) {
+            push();
+            
+            let fillColor, strokeColor, textColor;
+            
+            if (isDisabled) {
+                fillColor = color(80, 80, 80, 30);
+                strokeColor = color(120, 120, 120, 50);
+                textColor = color(100, 100, 100, 50);
+            } else if (isPressed) {
+                if (isLeft) {
+                    fillColor = color(100, 200, 255, 80);
+                    strokeColor = color(150, 230, 255, 200);
+                    textColor = color(255, 255, 255, 220);
+                    
+                    const glowSize = size * 1.5;
+                    fill(100, 200, 255, 30);
+                    ellipse(x, y, glowSize, glowSize);
+                } else {
+                    fillColor = color(255, 180, 100, 80);
+                    strokeColor = color(255, 200, 120, 200);
+                    textColor = color(255, 255, 255, 220);
+                    
+                    const glowSize = size * 1.5;
+                    fill(255, 180, 100, 30);
+                    ellipse(x, y, glowSize, glowSize);
+                }
+            } else {
+                fillColor = color(80, 80, 80, 30);
+                strokeColor = color(200, 200, 200, 60);
+                textColor = color(200, 200, 200, 80);
+            }
+            
+            fill(fillColor);
+            stroke(strokeColor);
+            strokeWeight(1.5);
+            rectMode(CENTER);
+            rect(x, y, size, size, 8);
+            
+            fill(textColor);
+            noStroke();
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text(label, x, y);
+            
+            if (isDisabled) {
+                stroke(100, 100, 100, 60);
+                strokeWeight(2);
+                line(x - size * 0.35, y - size * 0.35, x + size * 0.35, y + size * 0.35);
+                line(x + size * 0.35, y - size * 0.35, x - size * 0.35, y + size * 0.35);
+            }
+            
+            pop();
+        }
+        
+        function displayDirectionArrow() {
+            if (isMoving || isPaused || manualPaused || gameOver) {
+                return;
+            }
+            
+            if (moveMode === 'key' && !nextDir) {
+                return;
+            }
+            
+            const target = findTargetDrop();
+            if (!target) {
+                return;
+            }
+            
+            const playerX = CANVAS_CENTER_X;
+            const playerY = CANVAS_CENTER_Y;
+            const playerRadius = player.radius;
+            
+            const targetScreenPos = target.getScreenPos();
+            
+            push();
+            
+            const dx = targetScreenPos.x - playerX;
+            const dy = targetScreenPos.y - playerY;
+            const distance = sqrt(dx * dx + dy * dy);
+            const arrowAngle = atan2(dy, dx);
+            
+            const arrowStartDistance = playerRadius + 15;
+            const arrowEndDistance = distance - target.radius - 10;
+            
+            const pulse = sin(millis() * 0.005) * 0.2 + 0.8;
+            const alpha = 150 + pulse * 100;
+            
+            strokeWeight(2);
+            stroke(100, 200, 255, alpha * 0.6);
+            noFill();
+            line(
+                playerX + cos(arrowAngle) * arrowStartDistance,
+                playerY + sin(arrowAngle) * arrowStartDistance,
+                playerX + cos(arrowAngle) * arrowEndDistance,
+                playerY + sin(arrowAngle) * arrowEndDistance
+            );
+            
+            const arrowX = playerX + cos(arrowAngle) * arrowEndDistance;
+            const arrowY = playerY + sin(arrowAngle) * arrowEndDistance;
+            
+            translate(arrowX, arrowY);
+            rotate(arrowAngle + PI);
+            
+            strokeWeight(3);
+            stroke(100, 200, 255, alpha);
+            fill(100, 200, 255, alpha * 0.5);
+            
+            const arrowSize = 12 + pulse * 4;
+            beginShape();
+            vertex(-arrowSize, 0);
+            vertex(-arrowSize * 0.3, -arrowSize * 0.4);
+            vertex(-arrowSize * 0.3, -arrowSize * 0.2);
+            vertex(arrowSize, -arrowSize * 0.2);
+            vertex(arrowSize, arrowSize * 0.2);
+            vertex(-arrowSize * 0.3, arrowSize * 0.2);
+            vertex(-arrowSize * 0.3, arrowSize * 0.4);
+            endShape(CLOSE);
+            
+            pop();
+            
+            push();
+            noFill();
+            stroke(100, 200, 255, alpha * 0.4);
+            strokeWeight(2);
+            ellipse(targetScreenPos.x, targetScreenPos.y, target.radius * 2 + 10, target.radius * 2 + 10);
+            pop();
+        }
+        
+        function displayUIButtons() {
+            const buttonSize = 36;
+            const buttonY = 670;
+            const restartX = 25;
+            const pauseX = CANVAS_WIDTH - 25 - buttonSize / 2;
+            const helpX = pauseX - buttonSize - 8;
+            
+            drawRestartButton(restartX, buttonY, buttonSize);
+            drawPauseButton(pauseX, buttonY, buttonSize);
+            drawHelpButton(helpX, buttonY, buttonSize);
+        }
+        
+        function drawRestartButton(x, y, size) {
+            push();
+            const isHovered = dist(mouseX, mouseY, x + size / 2, y) < size / 2;
+            restartButtonHovered = isHovered;
+            
+            const baseAlpha = restartConfirm ? 80 : (isHovered ? 70 : 40);
+            const glowAlpha = isHovered ? 30 : 0;
+            
+            if (glowAlpha > 0) {
+                fill(255, 255, 255, glowAlpha);
+                ellipse(x + size / 2, y, size * 1.4, size * 1.4);
+            }
+            
+            fill(80, 80, 80, baseAlpha);
+            stroke(200, 200, 200, baseAlpha * 1.5);
+            strokeWeight(1.5);
+            ellipse(x + size / 2, y, size, size);
+            
+            fill(255, 255, 255, baseAlpha * 2);
+            noStroke();
+            textSize(20);
+            textAlign(CENTER, CENTER);
+            
+            push();
+            translate(x + size / 2, y);
+            rotate(millis() * 0.002);
+            text('↻', 0, 1);
+            pop();
+            
+            pop();
+        }
+        
+        function drawPauseButton(x, y, size) {
+            push();
+            const isHovered = dist(mouseX, mouseY, x, y) < size / 2;
+            pauseButtonHovered = isHovered;
+            
+            const isCurrentlyPaused = isPaused || manualPaused;
+            const baseAlpha = isCurrentlyPaused ? 80 : (isHovered ? 70 : 40);
+            const glowAlpha = isHovered || isCurrentlyPaused ? 30 : 0;
+            
+            if (glowAlpha > 0) {
+                fill(255, 215, 100, glowAlpha);
+                ellipse(x, y, size * 1.4, size * 1.4);
+            }
+            
+            fill(80, 80, 80, baseAlpha);
+            stroke(isCurrentlyPaused ? color(255, 215, 100, baseAlpha * 1.5) : color(200, 200, 200, baseAlpha * 1.5));
+            strokeWeight(1.5);
+            ellipse(x, y, size, size);
+            
+            fill(isCurrentlyPaused ? color(255, 215, 100, baseAlpha * 2) : color(255, 255, 255, baseAlpha * 2));
+            noStroke();
+            textSize(14);
+            textAlign(CENTER, CENTER);
+            
+            if (isCurrentlyPaused) {
+                text('▶', x, y);
+            } else {
+                rect(x - 5, y - 5, 4, 10, 1);
+                rect(x + 2, y - 5, 4, 10, 1);
+            }
+            
+            pop();
+        }
+        
+        function drawHelpButton(x, y, size) {
+            push();
+            const isHovered = dist(mouseX, mouseY, x, y) < size / 2;
+            helpButtonHovered = isHovered;
+            
+            const baseAlpha = showHelp ? 80 : (isHovered ? 70 : 40);
+            const glowAlpha = isHovered || showHelp ? 30 : 0;
+            
+            if (glowAlpha > 0) {
+                fill(100, 200, 255, glowAlpha);
+                ellipse(x, y, size * 1.4, size * 1.4);
+            }
+            
+            fill(80, 80, 80, baseAlpha);
+            stroke(showHelp ? color(100, 200, 255, baseAlpha * 1.5) : color(200, 200, 200, baseAlpha * 1.5));
+            strokeWeight(1.5);
+            ellipse(x, y, size, size);
+            
+            fill(showHelp ? color(100, 200, 255, baseAlpha * 2) : color(255, 255, 255, baseAlpha * 2));
+            noStroke();
+            textSize(16);
+            textAlign(CENTER, CENTER);
+            text('?', x, y);
+            
+            pop();
+        }
+        
+        function displayRestartConfirm() {
+            if (!restartConfirm) return;
+            
+            const boxWidth = 250;
+            const boxHeight = 120;
+            const padding = 20;
+            
+            fill(0, 0, 0, 150);
+            rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            fill(60, 60, 60, 220);
+            stroke(255, 215, 100, 200);
+            strokeWeight(2);
+            rectMode(CENTER);
+            rect(CANVAS_CENTER_X, CANVAS_CENTER_Y, boxWidth, boxHeight, 10);
+            rectMode(CORNER);
+            
+            const boxX = CANVAS_CENTER_X - boxWidth / 2;
+            const boxY = CANVAS_CENTER_Y - boxHeight / 2;
+            
+            fill(255, 255, 255, 200);
+            textSize(14);
+            textAlign(CENTER, CENTER);
+            text('确定重新开始？', CANVAS_CENTER_X, boxY + 40);
+            text('左键确认 / 右键取消', CANVAS_CENTER_X, boxY + 70);
+        }
+        
+        function displayHelpPanel() {
+            if (!showHelp) return;
+            
+            const boxX = 45;
+            const boxY = 90;
+            const boxWidth = CANVAS_WIDTH - 90;
+            const boxHeight = CANVAS_HEIGHT - 230;
+            const padding = 25;
+            const contentX = boxX + padding;
+            const contentWidth = boxWidth - padding * 2;
+            
+            fill(0, 0, 0, 180);
+            rect(boxX, boxY, boxWidth, boxHeight, 15);
+            
+            fill(255, 255, 255, 200);
+            textSize(16);
+            textAlign(LEFT, TOP);
+            
+            let y = boxY + padding;
+            const lineHeight = 32;
+            
+            text('操作说明', contentX, y);
+            y += lineHeight + 8;
+            
+            fill(200, 230, 255, 180);
+            textSize(14);
+            text('鼠标左键：选择左下方最近的水珠', contentX, y, contentWidth);
+            y += lineHeight;
+            
+            text('鼠标右键：选择右下方最近的水珠', contentX, y, contentWidth);
+            y += lineHeight;
+            
+            text('长按左键：与其他移动水珠融合', contentX, y, contentWidth);
+            y += lineHeight;
+            
+            text('收集星星：增加分数', contentX, y, contentWidth);
+            y += lineHeight;
+            
+            text('避开灰尘水珠：会减慢移动速度', contentX, y, contentWidth);
+            y += lineHeight;
+            
+            text('自动移动：若不主动操作，水滴自动向左下方移动', contentX, y, contentWidth);
+            y += lineHeight + 8;
+            
+            fill(255, 215, 100, 180);
+            text('觉醒状态：', contentX, y, contentWidth);
+            y += lineHeight;
+            fill(200, 230, 255, 180);
+            text('融合3颗水珠后进入觉醒模式', contentX, y, contentWidth);
+            y += lineHeight;
+            text('鼠标移动控制方向', contentX, y, contentWidth);
+            y += lineHeight + 8;
+            
+            fill(150, 150, 150, 150);
+            textSize(13);
+            textAlign(CENTER, BOTTOM);
+            text('点击任意处关闭', CANVAS_CENTER_X, boxY + boxHeight - padding);
+        }
+        
+        function displayOperationGuide() {
+            if (!showOperationGuide) return;
+            
+            const boxX = 45;
+            const boxY = 90;
+            const boxWidth = CANVAS_WIDTH - 90;
+            const boxHeight = CANVAS_HEIGHT - 230;
+            const padding = 25;
+            const contentX = boxX + padding;
+            const contentWidth = boxWidth - padding * 2;
+            
+            fill(0, 0, 0, 180);
+            rect(boxX, boxY, boxWidth, boxHeight, 15);
+            
+            noStroke();
+            fill(255, 215, 100, 200);
+            textSize(22);
+            textAlign(CENTER, TOP);
+            text('游戏操作指南', CANVAS_CENTER_X, boxY + padding);
+            
+            fill(200, 230, 255, 180);
+            textSize(14);
+            textAlign(LEFT, TOP);
+            
+            let y = boxY + 60;
+            text('鼠标左键：选择左下方最近的水珠', contentX, y, contentWidth);
+            y += 24;
+            
+            text('鼠标右键：选择右下方最近的水珠', contentX, y, contentWidth);
+            y += 24;
+            
+            text('长按左键：与其他移动水珠融合', contentX, y, contentWidth);
+            y += 24;
+            
+            text('收集星星：增加分数', contentX, y, contentWidth);
+            y += 24;
+            
+            text('避开灰尘水珠：会减慢移动速度', contentX, y, contentWidth);
+            y += 24;
+            
+            text('自动移动：若不主动操作，水滴自动向左下方移动', contentX, y, contentWidth);
+            y += 24;
+            
+            fill(255, 215, 100, 180);
+            text('觉醒状态：', contentX, y, contentWidth);
+            y += 20;
+            fill(200, 230, 255, 180);
+            text('融合3颗水珠后进入觉醒模式', contentX, y, contentWidth);
+            y += 20;
+            text('鼠标移动控制方向', contentX, y, contentWidth);
+            y += 30;
+            
+            fill(150, 150, 150, 180);
+            textSize(13);
+            textAlign(CENTER, BOTTOM);
+            text('点击任意处开始游戏', CANVAS_CENTER_X, boxY + boxHeight - padding);
+        }
+        
+        function displayJourneyRecordPage() {
+            if (!journalSoundPlayed && journalSoundLoaded && journalSound) {
+                try {
+                    journalSound.setVolume(0.55);
+                    journalSound.play();
+                } catch (e) {
+                    console.log('Journal sound play failed');
+                }
+                journalSoundPlayed = true;
+            }
+            
+            push();
+            
+            if (bgLoaded && bgImage) {
+                image(bgImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            } else {
+                background(0);
+            }
+            
+            displayAwakeningBorder();
+            
+            const cardWidth = 360;
+            const cardHeight = 520;
+            const cardX = (CANVAS_WIDTH - cardWidth) / 2;
+            const cardY = (CANVAS_HEIGHT - cardHeight) / 2;
+            const padding = 35;
+            const contentX = cardX + padding;
+            const contentWidth = cardWidth - padding * 2;
+            
+            fill(255, 248, 235);
+            stroke(200, 180, 160);
+            strokeWeight(2);
+            rect(cardX, cardY, cardWidth, cardHeight, 15);
+            
+            for (let i = 0; i < 300; i++) {
+                const px = random(cardX + 5, cardX + cardWidth - 5);
+                const py = random(cardY + 5, cardY + cardHeight - 5);
+                const alpha = random(3, 12);
+                fill(180, 160, 140, alpha);
+                noStroke();
+                ellipse(px, py, random(0.5, 1.5), random(0.5, 1.5));
+            }
+            
+            fill(40, 30, 20);
+            textSize(26);
+            textAlign(CENTER, TOP);
+            text('我的旅程', CANVAS_CENTER_X, cardY + padding);
+            
+            const lineHeight = 30;
+            let currentY = cardY + 75;
+            
+            fill(0);
+            textSize(15);
+            textAlign(LEFT, TOP);
+            
+            text('这一路，你走了 ' + totalSteps + ' 步。', contentX, currentY, contentWidth);
+            currentY += lineHeight;
+            
+            text('结识了 ' + totalFriends + ' 位朋友。', contentX, currentY, contentWidth);
+            currentY += lineHeight + 10;
+            
+            if (totalFriends > 0) {
+                text('他们是：', contentX, currentY, contentWidth);
+                currentY += lineHeight;
+                
+                textSize(15);
+                textStyle(BOLD);
+                
+                const namesPerLine = 6;
+                for (let i = 0; i < friendNames.length; i += namesPerLine) {
+                    const lineNames = friendNames.slice(i, i + namesPerLine);
+                    text(lineNames.join('、'), contentX, currentY, contentWidth);
+                    currentY += lineHeight;
+                }
+                
+                textStyle(NORMAL);
+                textSize(14);
+                currentY += 10;
+            }
+            
+            stroke(200, 180, 160);
+            strokeWeight(1);
+            line(contentX, currentY, cardX + cardWidth - padding, currentY);
+            noStroke();
+            currentY += 20;
+            
+            let message = '';
+            if (totalFriends === 0) {
+                message = '独自前行也是一种勇敢，下一程，或许会有人与你并肩。';
+            } else if (totalFriends <= 2) {
+                message = '每一次相遇都是旅途中的惊喜，哪怕短暂，也足以温暖一程。';
+            } else if (totalFriends <= 5) {
+                message = '陪伴是最温柔的力量，它让追星星的路，本身变成了星光。';
+            } else {
+                message = '你已经发现，真正的幸福不是收集了多少星星，而是与谁一起追逐过光芒。';
+            }
+            
+            fill(0);
+            textSize(14);
+            textAlign(LEFT, TOP);
+            
+            const maxMessageY = cardY + cardHeight - padding - 20;
+            const availableHeight = maxMessageY - currentY;
+            
+            if (availableHeight > 30) {
+                const messageLines = message.split('');
+                const charsPerLine = Math.floor(contentWidth / textSize() * 0.6);
+                
+                let line = '';
+                let y = currentY;
+                
+                for (let i = 0; i < messageLines.length; i++) {
+                    const char = messageLines[i];
+                    line += char;
+                    
+                    if (line.length >= charsPerLine || i === messageLines.length - 1) {
+                        if (y + 20 > maxMessageY) break;
+                        text(line, contentX, y, contentWidth);
+                        y += 22;
+                        line = '';
+                    }
+                }
+            }
+            
+            if (millis() - journalStartTime > 5000) {
+                const alpha = 150 + 100 * sin(millis() / 500);
+                const buttonWidth = 200;
+                const buttonHeight = 40;
+                const buttonX = CANVAS_CENTER_X - buttonWidth / 2;
+                const buttonY = cardY + cardHeight - padding - buttonHeight / 2;
+                
+                fill(255, 255, 255, alpha * 0.8);
+                stroke(180, 160, 140, alpha);
+                strokeWeight(2);
+                rect(buttonX, buttonY, buttonWidth, buttonHeight, 20);
+                
+                fill(60, 50, 40, alpha);
+                textSize(16);
+                textAlign(CENTER, CENTER);
+                text('开始新的旅程', CANVAS_CENTER_X, buttonY + buttonHeight / 2);
+                noStroke();
+            }
+            
+            pop();
+        }
+        
+        function drawMouseLeftIcon(x, y) {
+            push();
+            fill(100, 200, 255, 150);
+            stroke(150, 230, 255, 180);
+            strokeWeight(1);
+            rect(x, y - 8, 22, 16, 3);
+            fill(100, 200, 255, 200);
+            rect(x + 2, y - 6, 9, 6, 2);
+            pop();
+        }
+        
+        function drawMouseRightIcon(x, y) {
+            push();
+            fill(255, 180, 100, 150);
+            stroke(255, 200, 120, 180);
+            strokeWeight(1);
+            rect(x, y - 8, 22, 16, 3);
+            fill(255, 180, 100, 200);
+            rect(x + 11, y - 6, 9, 6, 2);
+            pop();
+        }
+        
+        function drawFusionIcon(x, y) {
+            push();
+            fill(255, 215, 100, 150);
+            stroke(255, 230, 150, 180);
+            strokeWeight(1);
+            ellipse(x + 5, y, 8, 8);
+            fill(180, 220, 230, 150);
+            stroke(200, 240, 255, 180);
+            ellipse(x + 15, y, 8, 8);
+            stroke(255, 215, 100, 100);
+            strokeWeight(1.5);
+            line(x + 9, y - 3, x + 11, y - 3);
+            line(x + 9, y, x + 11, y);
+            line(x + 9, y + 3, x + 11, y + 3);
+            pop();
+        }
+        
+        function drawStarIcon(x, y) {
+            push();
+            fill(255, 215, 100, 180);
+            stroke(255, 230, 150, 180);
+            strokeWeight(0.5);
+            beginShape();
+            for (let i = 0; i < 5; i++) {
+                const outerAngle = TWO_PI * i / 5 - HALF_PI;
+                const innerAngle = outerAngle + PI / 5;
+                vertex(x + cos(outerAngle) * 6, y + sin(outerAngle) * 6);
+                vertex(x + cos(innerAngle) * 3, y + sin(innerAngle) * 3);
+            }
+            endShape(CLOSE);
+            pop();
+        }
+        
+        function drawDustIcon(x, y) {
+            push();
+            fill(100, 90, 80, 180);
+            stroke(120, 110, 100, 180);
+            strokeWeight(1);
+            ellipse(x + 10, y, 10, 10);
+            fill(160, 140, 120, 180);
+            textSize(8);
+            textAlign(CENTER, CENTER);
+            text('×', x + 10, y + 2);
+            pop();
+        }
+        
+        function drawAutoMoveIcon(x, y) {
+            push();
+            stroke(200, 230, 255, 150);
+            strokeWeight(2);
+            fill(200, 230, 255, 100);
+            beginShape();
+            vertex(x + 15, y - 5);
+            vertex(x + 15, y + 8);
+            vertex(x, y + 8);
+            endShape(CLOSE);
+            push();
+            stroke(200, 230, 255, 180);
+            strokeWeight(1.5);
+            triangle(x + 15, y + 8, x + 11, y + 4, x + 15, y);
+            pop();
+            pop();
+        }
+        
+        function drawStarProgressBar() {
+            const barWidth = 200;
+            const barHeight = 16;
+            const starSize = 12;
+            const starX = CANVAS_CENTER_X - barWidth / 2 - starSize - 8;
+            const barX = CANVAS_CENTER_X - barWidth / 2;
+            const barY = 15;
+            const progress = constrain(starCount / STAR_GOAL, 0, 1);
+            
+            fill(255, 215, 100, 180);
+            stroke(255, 230, 150, 180);
+            strokeWeight(1);
+            beginShape();
+            for (let i = 0; i < 5; i++) {
+                const outerAngle = TWO_PI * i / 5 - HALF_PI;
+                const innerAngle = outerAngle + PI / 5;
+                vertex(starX + cos(outerAngle) * starSize / 2, barY + barHeight / 2 + sin(outerAngle) * starSize / 2);
+                vertex(starX + cos(innerAngle) * starSize / 4, barY + barHeight / 2 + sin(innerAngle) * starSize / 4);
+            }
+            endShape(CLOSE);
+            
+            fill(60, 60, 60, 180);
+            stroke(100, 100, 100, 180);
+            strokeWeight(2);
+            rect(barX, barY, barWidth, barHeight, 8);
+            
+            if (progress > 0) {
+                const gradient = drawingContext.createLinearGradient(barX, 0, barX + barWidth, 0);
+                gradient.addColorStop(0, 'rgba(255, 200, 100, 0.9)');
+                gradient.addColorStop(1, 'rgba(255, 235, 100, 0.9)');
+                drawingContext.fillStyle = gradient;
+                noStroke();
+                rect(barX, barY, barWidth * progress, barHeight, 8);
+            }
+            
+            fill(255, 255, 255, 200);
+            textSize(10);
+            textAlign(CENTER, CENTER);
+            text(`${starCount}/${STAR_GOAL}`, barX + barWidth / 2, barY + barHeight / 2);
+        }
+        
+        function drawFusionProgressBar() {
+            const barWidth = 120;
+            const barHeight = 12;
+            const dropSize = 12;
+            const dropX = CANVAS_CENTER_X - barWidth / 2 - dropSize - 8;
+            const barX = CANVAS_CENTER_X - barWidth / 2;
+            const barY = 38;
+            const progress = constrain(fusedAIs.length / MAX_FUSIONS, 0, 1);
+            const isAwakened = activePartners >= MAX_FUSIONS;
+            
+            const glowIntensity = isAwakened ? (0.5 + sin(millis() * 0.005) * 0.3) : 1;
+            
+            if (isAwakened) {
+                drawingContext.shadowBlur = 15;
+                drawingContext.shadowColor = 'rgba(255, 200, 100, ' + glowIntensity * 0.8 + ')';
+            }
+            
+            fill(100, 200, 255, 180);
+            stroke(150, 230, 255, 180);
+            strokeWeight(1);
+            beginShape();
+            vertex(dropX + dropSize / 2, barY - dropSize / 2);
+            bezierVertex(dropX + dropSize / 2, barY + dropSize / 3, 
+                        dropX, barY + dropSize / 2, 
+                        dropX + dropSize / 2, barY + dropSize / 2);
+            bezierVertex(dropX + dropSize, barY + dropSize / 2, 
+                        dropX + dropSize / 2, barY + dropSize / 3, 
+                        dropX + dropSize / 2, barY - dropSize / 2);
+            endShape(CLOSE);
+            
+            drawingContext.shadowBlur = 0;
+            
+            fill(60, 60, 60, 180);
+            stroke(isAwakened ? color(255, 200, 100, 200) : color(100, 100, 100, 180));
+            strokeWeight(2);
+            rect(barX, barY, barWidth, barHeight, 6);
+            
+            if (progress > 0) {
+                if (isAwakened) {
+                    const rainbowGradient = drawingContext.createLinearGradient(barX, 0, barX + barWidth, 0);
+                    rainbowGradient.addColorStop(0, 'rgba(255, 100, 100, ' + (0.9 * glowIntensity) + ')');
+                    rainbowGradient.addColorStop(0.2, 'rgba(255, 165, 100, ' + (0.9 * glowIntensity) + ')');
+                    rainbowGradient.addColorStop(0.4, 'rgba(255, 255, 100, ' + (0.9 * glowIntensity) + ')');
+                    rainbowGradient.addColorStop(0.6, 'rgba(100, 255, 100, ' + (0.9 * glowIntensity) + ')');
+                    rainbowGradient.addColorStop(0.8, 'rgba(100, 200, 255, ' + (0.9 * glowIntensity) + ')');
+                    rainbowGradient.addColorStop(1, 'rgba(200, 100, 255, ' + (0.9 * glowIntensity) + ')');
+                    drawingContext.fillStyle = rainbowGradient;
+                    drawingContext.shadowBlur = 10;
+                    drawingContext.shadowColor = 'rgba(255, 255, 200, ' + glowIntensity * 0.6 + ')';
+                } else {
+                    const gradient = drawingContext.createLinearGradient(barX, 0, barX + barWidth, 0);
+                    gradient.addColorStop(0, 'rgba(100, 200, 255, 0.9)');
+                    gradient.addColorStop(1, 'rgba(150, 230, 255, 0.9)');
+                    drawingContext.fillStyle = gradient;
+                }
+                noStroke();
+                rect(barX, barY, barWidth * progress, barHeight, 6);
+                drawingContext.shadowBlur = 0;
+            }
+            
+            fill(255, 255, 255, 200);
+            textSize(9);
+            textAlign(CENTER, CENTER);
+            text(`${fusedAIs.length}/${MAX_FUSIONS}`, barX + barWidth / 2, barY + barHeight / 2);
+        }
+        
+        function displayMissionDialog() {
+            if (!showMissionDialog) return;
+            
+            const boxWidth = 320;
+            const boxHeight = 200;
+            const padding = 25;
+            
+            fill(60, 60, 60, 220);
+            stroke(255, 215, 100, 200);
+            strokeWeight(3);
+            rectMode(CENTER);
+            rect(CANVAS_CENTER_X, CANVAS_CENTER_Y, boxWidth, boxHeight, 15);
+            rectMode(CORNER);
+            
+            const boxX = CANVAS_CENTER_X - boxWidth / 2;
+            const boxY = CANVAS_CENTER_Y - boxHeight / 2;
+            
+            fill(255, 255, 255, 255);
+            textSize(22);
+            textAlign(CENTER, TOP);
+            text('任务', CANVAS_CENTER_X, boxY + padding);
+            
+            fill(255, 255, 255, 255);
+            textSize(14);
+            text('在2分钟内收集10个星星', boxX + padding, boxY + 60, boxWidth - padding * 2);
+            
+            const seconds = Math.floor(MISSION_TIME_LIMIT / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            fill(255, 255, 255, 255);
+            text('限时: ' + minutes + '分' + remainingSeconds + '秒', boxX + padding, boxY + 95, boxWidth - padding * 2);
+            
+            fill(255, 255, 255, 200);
+            textSize(12);
+            textAlign(CENTER, BOTTOM);
+            text('点击任意处开始', CANVAS_CENTER_X, boxY + boxHeight - padding);
+        }
+        
+        function displayMissionTimer() {
+            if (showMissionDialog || missionComplete || missionFailed || gameOver) return;
+            
+            const isInPause = isPaused || manualPaused || showHelp;
+            
+            if (isInPause) {
+                if (missionPausedStartTime === 0) {
+                    missionPausedStartTime = millis();
+                }
+                return;
+            }
+            
+            if (missionPausedStartTime > 0) {
+                missionPausedTime += millis() - missionPausedStartTime;
+                missionPausedStartTime = 0;
+            }
+            
+            const elapsed = millis() - missionStartTime - missionPausedTime;
+            missionTimeRemaining = max(0, MISSION_TIME_LIMIT - elapsed);
+            
+            const seconds = ceil(missionTimeRemaining / 1000);
+            const minutes = floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            
+            const timerX = CANVAS_WIDTH - 80;
+            const timerY = 25;
+            
+            fill(60, 60, 60, 150);
+            stroke(100, 100, 100, 150);
+            strokeWeight(1);
+            rect(timerX - 35, timerY - 12, 70, 24, 6);
+            
+            if (missionTimeRemaining <= 30000) {
+                fill(255, 100, 100, 200);
+            } else {
+                fill(255, 255, 255, 200);
+            }
+            textSize(12);
+            textAlign(CENTER, CENTER);
+            text(nf(minutes, 1) + ':' + nf(remainingSeconds, 2), timerX, timerY);
+        }
+        
+        function displayMissionFailed() {
+            if (!missionFailed) return;
+            
+            fill(0, 0, 0, 180);
+            rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            fill(200, 200, 200, 200);
+            textSize(24);
+            textAlign(CENTER, CENTER);
+            text('再接再厉', CANVAS_CENTER_X, CANVAS_CENTER_Y - 40);
+            
+            fill(255, 255, 255, 200);
+            textSize(16);
+            text('时间到！', CANVAS_CENTER_X, CANVAS_CENTER_Y);
+            
+            fill(200, 230, 255, 180);
+            textSize(14);
+            text('收集了 ' + starCount + ' / ' + STAR_GOAL + ' 颗星星', CANVAS_CENTER_X, CANVAS_CENTER_Y + 35);
+            
+            if (millis() - missionFailedTime > 2000) {
+                fill(150, 150, 150, 180);
+                textSize(12);
+                text('点击任意处回顾旅程', CANVAS_CENTER_X, CANVAS_CENTER_Y + 80);
+            }
+        }
+        
+        function displayMissionComplete() {
+            if (!missionComplete) return;
+            
+            if (!missionCompleteSoundPlayed && missionCompleteSoundLoaded && missionCompleteSound) {
+                try {
+                    missionCompleteSound.setVolume(0.55);
+                    missionCompleteSound.play();
+                    missionCompleteSoundPlayed = true;
+                } catch (e) {
+                    console.log('Mission complete sound play failed');
+                }
+            }
+            
+            fill(0, 0, 0, 180);
+            rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            fill(255, 215, 100, 200);
+            textSize(24);
+            textAlign(CENTER, CENTER);
+            text('任务完成！', CANVAS_CENTER_X, CANVAS_CENTER_Y - 60);
+            
+            fill(255, 255, 255, 200);
+            textSize(16);
+            text(`你成功收集了 ${STAR_GOAL} 颗星星！`, CANVAS_CENTER_X, CANVAS_CENTER_Y - 20);
+            
+            if (millis() - missionCompleteTime > 2000) {
+                fill(150, 150, 150, 180);
+                textSize(12);
+                text('点击任意处回顾旅程', CANVAS_CENTER_X, CANVAS_CENTER_Y + 50);
+            }
+        }
+        
+        function displayPausedOverlay() {
+            if (!manualPaused || isPaused) return;
+            
+            fill(0, 0, 0, 100);
+            rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            fill(255, 255, 255, 200);
+            textSize(24);
+            textAlign(CENTER, CENTER);
+            text('暂停中', CANVAS_CENTER_X, CANVAS_CENTER_Y);
+        }
+        
+        function displayTrails() {
+            const fadeSpeed = gameOver ? 0.04 : 0.02;
+            const isAwakened = activePartners >= MAX_FUSIONS;
+            
+            for (let i = trails.length - 1; i >= 0; i--) {
+                const t = trails[i];
+                t.life = (t.life || 1.0) - fadeSpeed;
+                
+                if (t.life <= 0) {
+                    trails.splice(i, 1);
+                    continue;
+                }
+                
+                const offsetX = player.worldX - CANVAS_CENTER_X;
+                const offsetY = player.worldY - CANVAS_CENTER_Y;
+                const screenX = t.worldX - offsetX;
+                const screenY = t.worldY - offsetY;
+                
+                const alpha = t.life * 50;
+                const width = (t.radius || 12) * 0.5 * t.life;
+                
+                if (isAwakened) {
+                    const colorIndex = (i % rainbowColors.length);
+                    const [r, g, b] = rainbowColors[colorIndex];
+                    fill(r, g, b, alpha * 0.8);
+                    noStroke();
+                    ellipse(screenX, screenY, width * 1.5, width * 0.8);
+                } else {
+                    fill(200, 230, 255, alpha);
+                    noStroke();
+                    ellipse(screenX, screenY, width, width * 0.6);
+                }
+                
+                if (i < trails.length - 1) {
+                    const nextT = trails[i + 1];
+                    const nextScreenX = nextT.worldX - offsetX;
+                    const nextScreenY = nextT.worldY - offsetY;
+                    
+                    if (isAwakened) {
+                        const nextColorIndex = ((i + 1) % rainbowColors.length);
+                        const [r, g, b] = rainbowColors[nextColorIndex];
+                        stroke(r, g, b, alpha * 0.5);
+                    } else {
+                        stroke(200, 230, 255, alpha * 0.5);
+                    }
+                    strokeWeight(width * 0.3);
+                    line(screenX, screenY, nextScreenX, nextScreenY);
+                }
+            }
+            
+            while (trails.length > 60) {
+                trails.shift();
+            }
+        }
+        
+        function updateAwakeningParticles() {
+            for (let i = awakeningParticles.length - 1; i >= 0; i--) {
+                const p = awakeningParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15;
+                p.life -= 0.02;
+                p.size *= 0.98;
+                
+                if (p.life <= 0 || p.size < 0.5) {
+                    awakeningParticles.splice(i, 1);
+                }
+            }
+        }
+        
+        function displayAwakeningParticles() {
+            for (const p of awakeningParticles) {
+                const [r, g, b] = p.color;
+                
+                fill(r, g, b, p.life * 150);
+                noStroke();
+                ellipse(p.x, p.y, p.size * 2, p.size * 2);
+                
+                fill(255, 255, 255, p.life * 100);
+                ellipse(p.x - p.size * 0.2, p.y - p.size * 0.2, p.size * 0.5, p.size * 0.5);
+            }
+        }
+        
+        function createClickParticles(x, y) {
+            const goldColors = [
+                [255, 215, 0],
+                [255, 223, 100],
+                [255, 200, 50],
+                [255, 180, 0],
+                [255, 240, 150]
+            ];
+            
+            for (let i = 0; i < 8; i++) {
+                const angle = random(TWO_PI);
+                const speed = random(1, 4);
+                const colorIndex = floor(random(goldColors.length));
+                const [r, g, b] = goldColors[colorIndex];
+                
+                clickParticles.push({
+                    x: x,
+                    y: y,
+                    vx: cos(angle) * speed,
+                    vy: sin(angle) * speed - 1,
+                    color: [r, g, b],
+                    size: random(2, 5),
+                    life: 1,
+                    rotation: random(TWO_PI),
+                    rotationSpeed: random(-0.2, 0.2)
+                });
+            }
+        }
+        
+        function updateClickParticles() {
+            for (let i = clickParticles.length - 1; i >= 0; i--) {
+                const p = clickParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.08;
+                p.vx *= 0.98;
+                p.life -= 0.025;
+                p.size *= 0.97;
+                p.rotation += p.rotationSpeed;
+                
+                if (p.life <= 0 || p.size < 0.3) {
+                    clickParticles.splice(i, 1);
+                }
+            }
+        }
+        
+        function displayClickParticles() {
+            for (const p of clickParticles) {
+                const [r, g, b] = p.color;
+                
+                push();
+                translate(p.x, p.y);
+                rotate(p.rotation);
+                
+                fill(r, g, b, p.life * 200);
+                noStroke();
+                
+                const starSize = p.size * 2;
+                beginShape();
+                for (let i = 0; i < 5; i++) {
+                    const angle = TWO_PI * i / 5 - HALF_PI;
+                    const outerX = cos(angle) * starSize;
+                    const outerY = sin(angle) * starSize;
+                    vertex(outerX, outerY);
+                    
+                    const innerAngle = angle + TWO_PI / 10;
+                    const innerX = cos(innerAngle) * (starSize * 0.4);
+                    const innerY = sin(innerAngle) * (starSize * 0.4);
+                    vertex(innerX, innerY);
+                }
+                endShape(CLOSE);
+                
+                fill(255, 255, 255, p.life * 100);
+                ellipse(-starSize * 0.2, -starSize * 0.2, starSize * 0.3, starSize * 0.3);
+                
+                pop();
+            }
+        }
+        
+        function displayAwakeningBorder() {
+            if (activePartners < MAX_FUSIONS) return;
+            
+            const pulse = sin(millis() * 0.003) * 0.5 + 0.5;
+            const alpha = 30 + pulse * 50;
+            
+            noFill();
+            
+            for (let i = 0; i < rainbowColors.length; i++) {
+                const [r, g, b] = rainbowColors[i];
+                const offset = i * 3;
+                const borderAlpha = alpha * (0.6 + sin(millis() * 0.002 + i * 0.5) * 0.4);
+                
+                stroke(r, g, b, borderAlpha);
+                strokeWeight(2);
+                rect(offset, offset, CANVAS_WIDTH - offset * 2, CANVAS_HEIGHT - offset * 2, 10);
+            }
+        }
+        
+        function displayStarGlowEffect() {
+            if (!starGlowEffect.active) return;
+            
+            const currentTime = millis();
+            const remaining = starGlowEffect.endTime - currentTime;
+            
+            if (remaining <= 0) {
+                starGlowEffect.active = false;
+                return;
+            }
+            
+            const progress = 1 - (remaining / 500);
+            const pulse = sin(progress * PI) * 0.5 + 0.5;
+            
+            const [r, g, b] = starGlowEffect.color;
+            const maxRadius = player.radius * 4;
+            const radius = maxRadius * (0.5 + pulse * 0.5);
+            const alpha = (1 - progress) * 150;
+            
+            push();
+            noStroke();
+            
+            for (let i = 3; i > 0; i--) {
+                const glowRadius = radius * (1 + i * 0.4);
+                const glowAlpha = alpha * (0.4 / i);
+                fill(r, g, b, glowAlpha);
+                ellipse(CANVAS_CENTER_X, CANVAS_CENTER_Y, glowRadius * 2, glowRadius * 2);
+            }
+            
+            fill(r, g, b, alpha * 0.8);
+            ellipse(CANVAS_CENTER_X, CANVAS_CENTER_Y, radius * 1.5, radius * 1.5);
+            
+            pop();
+        }
+        
+        function createRainyBackground() {
+            bgImage = createImage(CANVAS_WIDTH, CANVAS_HEIGHT);
+            bgImage.loadPixels();
+            
+            for (let y = 0; y < CANVAS_HEIGHT; y++) {
+                for (let x = 0; x < CANVAS_WIDTH; x++) {
+                    const i = (y * CANVAS_WIDTH + x) * 4;
+                    
+                    const noiseVal = noise(x * 0.01, y * 0.01);
+                    const mistColor = lerpColor(color(40, 60, 80), color(80, 100, 120), noiseVal);
+                    
+                    const dropProb = noise(x * 0.02, y * 0.02) * 0.3;
+                    if (random() < dropProb) {
+                        const dropSize = random(1, 4);
+                        const alpha = random(50, 150);
+                        
+                        for (let dy = -dropSize; dy <= dropSize; dy++) {
+                            for (let dx = -dropSize; dx <= dropSize; dx++) {
+                                const nx = x + dx;
+                                const ny = y + dy;
+                                if (nx >= 0 && nx < CANVAS_WIDTH && ny >= 0 && ny < CANVAS_HEIGHT) {
+                                    const ni = (ny * CANVAS_WIDTH + nx) * 4;
+                                    const dist = sqrt(dx * dx + dy * dy);
+                                    if (dist <= dropSize) {
+                                        const dropAlpha = (1 - dist / dropSize) * alpha;
+                                        bgImage.pixels[ni] = min(255, bgImage.pixels[ni] + dropAlpha * 0.8);
+                                        bgImage.pixels[ni + 1] = min(255, bgImage.pixels[ni + 1] + dropAlpha * 0.9);
+                                        bgImage.pixels[ni + 2] = min(255, bgImage.pixels[ni + 2] + dropAlpha);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        bgImage.pixels[i] = red(mistColor);
+                        bgImage.pixels[i + 1] = green(mistColor);
+                        bgImage.pixels[i + 2] = blue(mistColor);
+                        bgImage.pixels[i + 3] = 255;
+                    }
+                }
+            }
+            
+            bgImage.updatePixels();
+            bgLoaded = true;
+        }
+        
+        function preload() {
+            bgImage = loadImage('images/background.jpg', 
+                () => {
+                    bgLoaded = true;
+                }, 
+                () => {
+                    bgLoadError = true;
+                }
+            );
+            
+            startImage = loadImage('images/start.png',
+                () => {
+                    startImageLoaded = true;
+                },
+                () => {
+                    startImageLoaded = false;
+                    console.error('开始图片加载失败');
+                }
+            );
+            
+            eatSound1 = loadSound('sounds/forth.mp3',
+                () => { eatSoundsLoaded[0] = true; },
+                () => { eatSoundsLoaded[0] = false; }
+            );
+            eatSound2 = loadSound('sounds/fifth.mp3',
+                () => { eatSoundsLoaded[1] = true; },
+                () => { eatSoundsLoaded[1] = false; }
+            );
+            eatSound3 = loadSound('sounds/sixth.mp3',
+                () => { eatSoundsLoaded[2] = true; },
+                () => { eatSoundsLoaded[2] = false; }
+            );
+            
+            bgMusic = loadSound('sounds/seventh.mp3',
+                () => { bgMusicLoaded = true; },
+                () => { bgMusicLoaded = false; }
+            );
+            
+            starSound1 = loadSound('sounds/ninth.mp3',
+                () => { starSoundsLoaded[0] = true; },
+                () => { starSoundsLoaded[0] = false; }
+            );
+            starSound2 = loadSound('sounds/tenth.mp3',
+                () => { starSoundsLoaded[1] = true; },
+                () => { starSoundsLoaded[1] = false; }
+            );
+            starSound3 = loadSound('sounds/eleventh.mp3',
+                () => { starSoundsLoaded[2] = true; },
+                () => { starSoundsLoaded[2] = false; }
+            );
+            
+            journalSound = loadSound('sounds/eighth.mp3',
+                () => { journalSoundLoaded = true; },
+                () => { journalSoundLoaded = false; }
+            );
+            
+            dustSound = loadSound('sounds/twelfth.mp3',
+                () => { dustSoundLoaded = true; },
+                () => { dustSoundLoaded = false; }
+            );
+            
+            mergeSound = loadSound('sounds/thirteenth.mp3',
+                () => { mergeSoundLoaded = true; },
+                () => { mergeSoundLoaded = false; }
+            );
+            
+            missionCompleteSound = loadSound('sounds/fourteenth.mp3',
+                () => { missionCompleteSoundLoaded = true; },
+                () => { missionCompleteSoundLoaded = false; }
+            );
+            
+            fifteenthVideo = createVideo('sounds/fifteenth.mp4');
+            fifteenthVideo.hide();
+            
+            fifteenthVideo.elt.addEventListener('loadeddata', () => {
+                fifteenthVideoLoaded = true;
+            });
+            
+            fifteenthVideo.elt.addEventListener('error', () => {
+                fifteenthVideoLoaded = false;
+                console.error('开场视频加载失败');
+            });
+            
+            fifteenthVideo.elt.addEventListener('ended', () => {
+                if (introState === 'preIntro') {
+                    fifteenthVideo.stop();
+                    fifteenthVideo.hide();
+                    introState = 'firstMuted';
+                    
+                    if (introVideoLoaded && introVideo) {
+                        introVideo.loop();
+                    }
+                }
+            }, { once: true });
+            
+            introVideo = createVideo('videos/zzzz.mp4');
+            introVideo.hide();
+            introVideo.elt.muted = true;
+            
+            introVideo.elt.addEventListener('loadeddata', () => {
+                introVideoLoaded = true;
+            });
+            
+            introVideo.elt.addEventListener('error', () => {
+                introVideoLoaded = false;
+                skipIntro = true;
+                console.error('视频加载失败，跳过开场');
+            });
+            
+            secondVideo = createVideo('videos/second.mp4');
+            secondVideo.hide();
+            
+            secondVideo.elt.addEventListener('loadeddata', () => {
+                secondVideoLoaded = true;
+            });
+            
+            secondVideo.elt.addEventListener('error', () => {
+                secondVideoLoaded = false;
+                skipIntro = true;
+                console.error('第二个视频加载失败，跳过开场');
+            });
+            
+            secondVideo.elt.addEventListener('ended', () => {
+                if (introState === 'secondPlaying') {
+                    introState = 'secondPaused';
+                }
+            }, { once: true });
+            
+            thirdVideo = createVideo('videos/third.mp4');
+            thirdVideo.hide();
+            
+            thirdVideo.elt.addEventListener('loadeddata', () => {
+                thirdVideoLoaded = true;
+            });
+            
+            thirdVideo.elt.addEventListener('error', () => {
+                thirdVideoLoaded = false;
+                console.error('第三个视频加载失败');
+            });
+            
+            thirdVideo.elt.addEventListener('ended', () => {
+                if (gamePhase === 'thirdVideo') {
+                    gamePhase = 'thirdPaused';
+                }
+            }, { once: true });
+        }
+        
+        function setup() {
+            createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+            createDrops();
+            createAIDrops();
+            lastMoveTime = millis();
+            
+            document.addEventListener('contextmenu', e => e.preventDefault());
+        }
+        
+        function draw() {
+            if (!skipIntro) {
+                if (introState === 'preIntro') {
+                    if (fifteenthVideoLoaded && fifteenthVideo) {
+                        image(fifteenthVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    } else {
+                        background(0);
+                    }
+                    return;
+                }
+                
+                if (introState === 'waiting') {
+                    if (startImageLoaded && startImage) {
+                        image(startImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    } else {
+                        background(0);
+                    }
+                    
+                    const alpha = 50 + 50 * sin(millis() / 500);
+                    textSize(20);
+                    textAlign(CENTER, CENTER);
+                    
+                    stroke(255, 215, 0, alpha);
+                    strokeWeight(2);
+                    fill(255, 255, 255, alpha);
+                    
+                    text('点击任意处开始', CANVAS_CENTER_X, CANVAS_HEIGHT - 80);
+                    
+                    updateMouseTrail();
+                    updateMouseParticles();
+                    updateClickParticles();
+                    displayMouseTrail();
+                    displayMouseParticles();
+                    displayClickParticles();
+                    return;
+                }
+                
+                if (introState === 'firstMuted' || introState === 'firstUnmuted') {
+                    if (introVideoLoaded && introVideo) {
+                        image(introVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    } else {
+                        background(0);
+                    }
+                    
+                    const alpha = 50 + 50 * sin(millis() / 500);
+                    textSize(18);
+                    textAlign(CENTER, CENTER);
+                    
+                    stroke(255, 215, 0, alpha);
+                    strokeWeight(1.5);
+                    fill(255, 255, 255, alpha);
+                    
+                    const textY = CANVAS_HEIGHT - 80;
+                    if (introState === 'firstMuted') {
+                        text('点击任意处唤醒', CANVAS_CENTER_X, textY);
+                    } else if (introState === 'firstUnmuted') {
+                        text('再试一下吧', CANVAS_CENTER_X, textY);
+                    }
+                    
+                    updateMouseTrail();
+                    updateMouseParticles();
+                    updateClickParticles();
+                    displayMouseTrail();
+                    displayMouseParticles();
+                    displayClickParticles();
+                    return;
+                }
+                
+                if (introState === 'secondPlaying' || introState === 'secondPaused') {
+                    if (secondVideoLoaded && secondVideo) {
+                        image(secondVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    } else {
+                        background(0);
+                    }
+                    
+                    if (introState === 'secondPaused') {
+                        const alpha = 50 + 50 * sin(millis() / 500);
+                        textSize(18);
+                        textAlign(CENTER, CENTER);
+                        
+                        stroke(255, 215, 0, alpha);
+                        strokeWeight(1.5);
+                        fill(255, 255, 255, alpha);
+                        
+                        text('点击任意处', CANVAS_CENTER_X, CANVAS_HEIGHT - 80);
+                    }
+                    
+                    updateMouseTrail();
+                    updateMouseParticles();
+                    updateClickParticles();
+                    displayMouseTrail();
+                    displayMouseParticles();
+                    displayClickParticles();
+                    return;
+                }
+                
+                return;
+            }
+            
+            if (showMissionDialog) {
+                if (bgLoaded && bgImage) {
+                    image(bgImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                } else {
+                    background(0);
+                }
+                displayMissionDialog();
+                updateMouseTrail();
+                updateMouseParticles();
+                updateClickParticles();
+                displayMouseTrail();
+                displayMouseParticles();
+                displayClickParticles();
+                return;
+            }
+            
+            if (showOperationGuide) {
+                if (bgLoaded && bgImage) {
+                    image(bgImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                } else {
+                    background(0);
+                }
+                displayOperationGuide();
+                updateMouseTrail();
+                updateMouseParticles();
+                updateClickParticles();
+                displayMouseTrail();
+                displayMouseParticles();
+                displayClickParticles();
+                return;
+            }
+            
+            if (gamePhase === 'thirdVideo' || gamePhase === 'thirdPaused') {
+                if (thirdVideoLoaded && thirdVideo) {
+                    image(thirdVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                } else {
+                    background(0);
+                }
+                
+                if (gamePhase === 'thirdPaused') {
+                    const alpha = 50 + 50 * sin(millis() / 500);
+                    textSize(18);
+                    textAlign(CENTER, CENTER);
+                    
+                    fill(0, 0, 0, alpha);
+                    
+                    text('点击查看旅行记录', CANVAS_CENTER_X, CANVAS_HEIGHT - 80);
+                }
+                
+                updateMouseTrail();
+                updateMouseParticles();
+                updateClickParticles();
+                displayMouseTrail();
+                displayMouseParticles();
+                displayClickParticles();
+                return;
+            }
+            
+            if (gamePhase === 'journal') {
+                displayJourneyRecordPage();
+                updateMouseTrail();
+                updateMouseParticles();
+                updateClickParticles();
+                displayMouseTrail();
+                displayMouseParticles();
+                displayClickParticles();
+                return;
+            }
+            
+            if (bgLoaded && bgImage) {
+                image(bgImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            } else {
+                background(0);
+            }
+            
+            displayAwakeningBorder();
+            
+            if (gameOver) {
+                for (let d of drops) {
+                    d.display();
+                }
+                for (let ai of aiDrops) {
+                    ai.display();
+                }
+                
+                const fadeSpeed = 0.003;
+                for (let d of drops) {
+                    d.opacity = max(0, d.opacity - fadeSpeed * 255);
+                }
+                
+                for (let ai of aiDrops) {
+                    ai.radius = max(0, ai.radius - fadeSpeed * 2);
+                }
+                
+                const playerAlpha = max(0, 220 - (millis() - gameOverTime) * fadeSpeed * 255);
+                fill(255, 215, 100, playerAlpha);
+                stroke(255, 230, 150, playerAlpha * 0.9);
+                strokeWeight(1);
+                ellipse(CANVAS_CENTER_X, CANVAS_CENTER_Y, player.radius * 2, player.radius * 2);
+                
+                return;
+            }
+            
+            if (missionComplete) {
+                for (let d of drops) {
+                    d.display();
+                }
+                for (let ai of aiDrops) {
+                    ai.display();
+                }
+                player.display();
+                displayMissionComplete();
+                return;
+            }
+            
+            if (missionFailed) {
+                for (let d of drops) {
+                    d.display();
+                }
+                for (let ai of aiDrops) {
+                    ai.display();
+                }
+                player.display();
+                displayMissionFailed();
+                return;
+            }
+            
+            const centerX = CANVAS_WIDTH / 2;
+            const centerY = CANVAS_HEIGHT / 2;
+            const gradient = drawingContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, CANVAS_WIDTH);
+            gradient.addColorStop(0, 'rgba(30, 40, 60, 0.3)');
+            gradient.addColorStop(1, 'rgba(10, 15, 25, 0)');
+            drawingContext.fillStyle = gradient;
+            rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            for (let i = drops.length - 1; i >= 0; i--) {
+                if (!drops[i].isOnScreen()) {
+                    drops.splice(i, 1);
+                }
+            }
+            
+            while (drops.length < INITIAL_DROPS_COUNT) {
+                spawnNewDrop();
+            }
+            
+            manageAIDrops();
+            updateFusions();
+            
+            if (!showMissionDialog && !missionComplete && !missionFailed && !gameOver && !isPaused && !manualPaused && !showHelp) {
+                if (missionTimeRemaining <= 0) {
+                    missionFailed = true;
+                    missionFailedTime = millis();
+                }
+                
+                if (gameStartTime > 0 && !showStartDialog && millis() - gameStartTime >= 2000) {
+                    showStartDialog = true;
+                    startDialogEndTime = millis() + 3000;
+                    gameStartTime = 0;
+                }
+            }
+            
+            displayMissionTimer();
+            
+            displayTrails();
+            
+            for (let d of drops) {
+                d.display();
+            }
+            
+            if (!isPaused && !manualPaused) {
+                for (let ai of aiDrops) {
+                    ai.update();
+                    ai.display();
+                }
+                
+                player.updateMovement();
+                player.updateRadius();
+                player.display();
+                displayDirectionArrow();
+                
+                checkMeeting();
+            } else {
+                player.updateRadius();
+                for (let ai of aiDrops) {
+                    ai.display();
+                }
+                player.display();
+                
+                displayMeetingUI();
+            }
+            
+            updateMeeting();
+            
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                p.display();
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+            
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const r = ripples[i];
+                r.update();
+                r.display();
+                if (r.life <= 0) {
+                    ripples.splice(i, 1);
+                }
+            }
+            
+            if (restartConfirm) {
+                displayRestartConfirm();
+                return;
+            }
+            
+            if (missionComplete) {
+                displayMissionComplete();
+                return;
+            }
+            
+            if (showHelp) {
+                displayHelpPanel();
+                return;
+            }
+            
+            if (manualPaused && !isPaused) {
+                displayPausedOverlay();
+                return;
+            }
+            
+            displayCountdown();
+            displayMouseIndicators();
+            displayUIButtons();
+            
+            displayPausedOverlay();
+            
+            drawStarProgressBar();
+            drawFusionProgressBar();
+            
+            if (starPopup) {
+                const age = millis() - starPopup.startTime;
+                if (age < 800) {
+                    const alpha = map(age, 0, 800, 255, 0);
+                    const offsetY = map(age, 0, 800, 0, -30);
+                    const offsetX = player.worldX - CANVAS_CENTER_X;
+                    const offsetYWorld = player.worldY - CANVAS_CENTER_Y;
+                    const screenX = starPopup.worldX - offsetX;
+                    const screenY = starPopup.worldY - offsetYWorld;
+                    fill(255, 200, 100, alpha);
+                    textSize(20);
+                    textAlign(CENTER, CENTER);
+                    text('+1', screenX, screenY + offsetY);
+                } else {
+                    starPopup = null;
+                }
+            }
+            
+            displayFusionPopup();
+            displayLeavePopup();
+            displayStartDialog();
+            displayDustWarning();
+            
+            if (awakeningFlashEndTime > 0 && millis() < awakeningFlashEndTime) {
+                const flashAlpha = map(millis(), awakeningFlashEndTime - 300, awakeningFlashEndTime, 200, 0);
+                fill(255, 255, 240, flashAlpha);
+                rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            }
+            
+            if (!gameOver && !isPaused && !manualPaused) {
+                const currentTime = millis();
+                const isDusty = millis() < dustEffectEndTime;
+                const currentInterval = isDusty ? playerMoveInterval + DUST_INTERVAL_INCREASE : playerMoveInterval;
+                if (currentTime - lastMoveTime >= currentInterval && !isMoving) {
+                    performMove();
+                    lastMoveTime = currentTime;
+                }
+            } else {
+                const fadeSpeed = 0.003;
+                for (let d of drops) {
+                    d.opacity = max(0, d.opacity - fadeSpeed * 255);
+                }
+                
+                for (let ai of aiDrops) {
+                    ai.radius = max(0, ai.radius - fadeSpeed * 2);
+                }
+                
+                const playerAlpha = max(0, 220 - (millis() - gameOverTime) * fadeSpeed * 255);
+                fill(255, 215, 100, playerAlpha);
+                stroke(255, 230, 150, playerAlpha * 0.9);
+                strokeWeight(1);
+                ellipse(CANVAS_CENTER_X, CANVAS_CENTER_Y, player.radius * 2, player.radius * 2);
+            }
+            
+            updateAwakeningParticles();
+            displayAwakeningParticles();
+            
+            displayStarGlowEffect();
+            
+            updateClickParticles();
+            displayClickParticles();
+            
+            updateMouseTrail();
+            updateMouseParticles();
+            displayMouseTrail();
+            displayMouseParticles();
+        }
+        
+        function mouseMoved() {
+            const dx = mouseX - lastMouseX;
+            const dy = mouseY - lastMouseY;
+            const distance = sqrt(dx * dx + dy * dy);
+            
+            if (distance > 2) {
+                isMouseMoved = true;
+                mouseTrail.push({ x: mouseX, y: mouseY, time: millis() });
+                
+                if (mouseTrail.length > 10) {
+                    mouseTrail.shift();
+                }
+                
+                mouseFrameCount++;
+                if (mouseFrameCount % 2 === 0) {
+                    createMouseParticles(mouseX, mouseY);
+                }
+            }
+            
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+        }
+        
+        function createMouseParticles(x, y) {
+            const count = random() > 0.5 ? 2 : 1;
+            
+            for (let i = 0; i < count; i++) {
+                const angle = random(TWO_PI);
+                const speed = random(0.3, 1.0);
+                const isGold = random() > 0.7;
+                
+                mouseParticles.push({
+                    x: x,
+                    y: y,
+                    vx: cos(angle) * speed,
+                    vy: sin(angle) * speed,
+                    size: random(1, 3),
+                    color: isGold ? [255, 215, 100] : [200, 230, 255],
+                    life: random(15, 25),
+                    maxLife: random(15, 25)
+                });
+            }
+            
+            if (mouseParticles.length > 60) {
+                mouseParticles.splice(0, mouseParticles.length - 60);
+            }
+        }
+        
+        function updateMouseTrail() {
+            const maxAge = 500;
+            const currentTime = millis();
+            
+            mouseTrail = mouseTrail.filter(p => currentTime - p.time < maxAge);
+        }
+        
+        function updateMouseParticles() {
+            for (let i = mouseParticles.length - 1; i >= 0; i--) {
+                const p = mouseParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx *= 0.98;
+                p.vy *= 0.98;
+                p.life--;
+                
+                if (p.life <= 0) {
+                    mouseParticles.splice(i, 1);
+                }
+            }
+        }
+        
+        function displayMouseTrail() {
+            if (mouseTrail.length < 2) return;
+            
+            for (let i = 1; i < mouseTrail.length; i++) {
+                const alpha = (i / mouseTrail.length) * 20;
+                const width = (i / mouseTrail.length) * 1.5;
+                
+                stroke(200, 230, 255, alpha);
+                strokeWeight(width);
+                line(mouseTrail[i - 1].x, mouseTrail[i - 1].y, mouseTrail[i].x, mouseTrail[i].y);
+            }
+            
+            noStroke();
+        }
+        
+        function displayMouseParticles() {
+            for (const p of mouseParticles) {
+                const alpha = (p.life / p.maxLife) * 150;
+                const [r, g, b] = p.color;
+                
+                fill(r, g, b, alpha);
+                noStroke();
+                ellipse(p.x, p.y, p.size, p.size);
+            }
+        }
+        
+        function mousePressed() {
+            playBubbleSound();
+            createClickParticles(mouseX, mouseY);
+            
+            if (!skipIntro) {
+                if (introState === 'waiting') {
+                    introState = 'firstMuted';
+                    if (introVideoLoaded && introVideo) {
+                        introVideo.loop();
+                    }
+                    return;
+                }
+                
+                if (introState === 'preIntro') {
+                    if (fifteenthVideoLoaded && fifteenthVideo) {
+                        fifteenthVideo.play();
+                    } else {
+                        introState = 'firstMuted';
+                        if (introVideoLoaded && introVideo) {
+                            introVideo.loop();
+                        }
+                    }
+                    return;
+                }
+                
+                if (introState === 'firstMuted') {
+                    introVideo.elt.muted = false;
+                    introVideo.elt.currentTime = 0;
+                    introState = 'firstUnmuted';
+                    return;
+                }
+                
+                if (introState === 'firstUnmuted') {
+                    introVideo.stop();
+                    introVideo.hide();
+                    if (secondVideoLoaded && secondVideo) {
+                        secondVideo.elt.muted = false;
+                        secondVideo.play();
+                        introState = 'secondPlaying';
+                    } else {
+                        skipIntro = true;
+                        if (!tutorialTriggered) {
+                            tutorialTriggered = true;
+                            showMissionDialog = true;
+                        }
+                    }
+                    return;
+                }
+                
+                if (introState === 'secondPaused') {
+                    secondVideo.stop();
+                    secondVideo.hide();
+                    introState = 'done';
+                    skipIntro = true;
+                    if (!tutorialTriggered) {
+                        tutorialTriggered = true;
+                        showMissionDialog = true;
+                    }
+                    
+                    if (bgMusicLoaded && bgMusic) {
+                        try {
+                            bgMusic.setVolume(0.35);
+                            bgMusic.loop();
+                        } catch (e) {
+                            console.log('Background music play failed');
+                        }
+                    }
+                    
+                    return;
+                }
+            }
+            
+            if (gamePhase === 'thirdVideo') {
+                return;
+            }
+            
+            if (gamePhase === 'thirdPaused') {
+                thirdVideo.stop();
+                thirdVideo.hide();
+                gamePhase = 'journal';
+                journalStartTime = millis();
+                
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.setVolume(0.35);
+                        bgMusic.loop();
+                    } catch (e) {
+                        console.log('Background music play failed');
+                    }
+                }
+                
+                return;
+            }
+            
+            if (gamePhase === 'journal') {
+                if (millis() - journalStartTime > 5000) {
+                    completeReset();
+                }
+                return;
+            }
+            
+            if (gameOver) {
+                player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+                createDrops();
+                createAIDrops();
+                lastMoveTime = millis();
+                swallowCount = 0;
+                starCount = 0;
+                dustEffectEndTime = 0;
+                gameOver = false;
+                missionComplete = false;
+                missionCompleteTime = 0;
+                missionFailed = false;
+                missionFailedTime = 0;
+                missionTimeRemaining = MISSION_TIME_LIMIT;
+                nextDir = null;
+                particles = [];
+                ripples = [];
+                trails = [];
+                fusedAIs = [];
+                activePartners = 0;
+                playerMoveInterval = MOVE_INTERVAL;
+                moveMode = 'key';
+                noTargetCount = 0;
+                showMissionDialog = true;
+                showOperationGuide = false;
+                missionPausedTime = 0;
+                missionPausedStartTime = 0;
+                missionCompleteSoundPlayed = false;
+                hasSeenDustWarning = false;
+                return;
+            }
+            
+            if (showMissionDialog) {
+                showMissionDialog = false;
+                showOperationGuide = true;
+                return;
+            }
+            
+            if (showOperationGuide) {
+                showOperationGuide = false;
+                gamePhase = 'playing';
+                missionStartTime = millis();
+                gameStartTime = millis();
+                return;
+            }
+            
+            if (missionComplete) {
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.stop();
+                    } catch (e) {
+                        console.log('Background music stop failed');
+                    }
+                }
+                
+                if (thirdVideoLoaded && thirdVideo) {
+                    thirdVideo.elt.muted = false;
+                    thirdVideo.play();
+                    gamePhase = 'thirdVideo';
+                } else {
+                    gamePhase = 'journal';
+                    journalStartTime = millis();
+                    
+                    if (bgMusicLoaded && bgMusic) {
+                        try {
+                            bgMusic.setVolume(0.35);
+                            bgMusic.loop();
+                        } catch (e) {
+                            console.log('Background music play failed');
+                        }
+                    }
+                }
+                missionComplete = false;
+                return;
+            }
+            
+            if (missionFailed) {
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.stop();
+                    } catch (e) {
+                        console.log('Background music stop failed');
+                    }
+                }
+                
+                if (thirdVideoLoaded && thirdVideo) {
+                    thirdVideo.elt.muted = false;
+                    thirdVideo.play();
+                    gamePhase = 'thirdVideo';
+                } else {
+                    gamePhase = 'journal';
+                    journalStartTime = millis();
+                    
+                    if (bgMusicLoaded && bgMusic) {
+                        try {
+                            bgMusic.setVolume(0.35);
+                            bgMusic.loop();
+                        } catch (e) {
+                            console.log('Background music play failed');
+                        }
+                    }
+                }
+                missionFailed = false;
+                return;
+            }
+            
+            if (isPaused && mouseButton === LEFT) {
+                longPressStartTime = millis();
+                return;
+            }
+            
+            if (mouseButton === LEFT) {
+                leftMousePressed = true;
+            } else if (mouseButton === RIGHT) {
+                rightMousePressed = true;
+            }
+            
+            if (restartConfirm) {
+                if (mouseButton === LEFT) {
+                    resetGame();
+                } else if (mouseButton === RIGHT) {
+                    restartConfirm = false;
+                    manualPaused = false;
+                    lastMoveTime = millis();
+                }
+                return;
+            }
+            
+            if (showHelp) {
+                showHelp = false;
+                manualPaused = false;
+                lastMoveTime = millis();
+                if (restartButtonHovered) {
+                    restartConfirm = true;
+                }
+                return;
+            }
+            
+            if (restartButtonHovered) {
+                restartConfirm = true;
+                manualPaused = true;
+                return;
+            }
+            
+            if (pauseButtonHovered) {
+                manualPaused = !manualPaused;
+                if (!manualPaused) {
+                    lastMoveTime = millis();
+                }
+                return;
+            }
+            
+            if (helpButtonHovered) {
+                showHelp = true;
+                manualPaused = true;
+                return;
+            }
+            
+            if (moveMode === 'key') {
+                if (mouseButton === LEFT) {
+                    nextDir = 'left';
+                } else if (mouseButton === RIGHT) {
+                    nextDir = 'right';
+                }
+            }
+        }
+        
+        function playBubbleSound() {
+            if (!soundEnabled) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                const baseFreq = random(500, 800);
+                oscillator.frequency.setValueAtTime(baseFreq, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(baseFreq * 1.3, audioContext.currentTime + 0.08);
+                oscillator.frequency.exponentialRampToValueAtTime(baseFreq * 0.9, audioContext.currentTime + 0.2);
+                
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.08, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+                
+                if (random() > 0.7) {
+                    const osc2 = audioContext.createOscillator();
+                    const gain2 = audioContext.createGain();
+                    
+                    const freq2 = random(600, 900);
+                    osc2.frequency.setValueAtTime(freq2, audioContext.currentTime);
+                    osc2.frequency.exponentialRampToValueAtTime(freq2 * 1.15, audioContext.currentTime + 0.05);
+                    
+                    osc2.type = 'sine';
+                    
+                    gain2.gain.setValueAtTime(0.05, audioContext.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.12);
+                    
+                    osc2.connect(gain2);
+                    gain2.connect(audioContext.destination);
+                    
+                    osc2.start(audioContext.currentTime);
+                    osc2.stop(audioContext.currentTime + 0.12);
+                }
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+        
+        function playRandomEatSound() {
+            const loadedSounds = [];
+            if (eatSoundsLoaded[0] && eatSound1) loadedSounds.push(eatSound1);
+            if (eatSoundsLoaded[1] && eatSound2) loadedSounds.push(eatSound2);
+            if (eatSoundsLoaded[2] && eatSound3) loadedSounds.push(eatSound3);
+            
+            if (loadedSounds.length === 0) return;
+            
+            const randomIndex = floor(random(loadedSounds.length));
+            const sound = loadedSounds[randomIndex];
+            
+            try {
+                sound.setVolume(0.5);
+                sound.play();
+            } catch (e) {
+                console.log('Eat sound play failed');
+            }
+        }
+        
+        function playRandomStarSound() {
+            const loadedSounds = [];
+            if (starSoundsLoaded[0] && starSound1) loadedSounds.push(starSound1);
+            if (starSoundsLoaded[1] && starSound2) loadedSounds.push(starSound2);
+            if (starSoundsLoaded[2] && starSound3) loadedSounds.push(starSound3);
+            
+            if (loadedSounds.length === 0) return;
+            
+            const randomIndex = floor(random(loadedSounds.length));
+            const sound = loadedSounds[randomIndex];
+            
+            try {
+                sound.setVolume(0.5);
+                sound.play();
+            } catch (e) {
+                console.log('Star sound play failed');
+            }
+        }
+        
+        function playDustSound() {
+            if (!dustSoundLoaded || !dustSound) return;
+            
+            try {
+                dustSound.setVolume(0.5);
+                dustSound.play();
+            } catch (e) {
+                console.log('Dust sound play failed');
+            }
+        }
+        
+        function resetGameData() {
+            totalSteps = 0;
+            totalFriends = 0;
+            friendNames = [];
+            journalSoundPlayed = false;
+            missionCompleteSoundPlayed = false;
+            hasSeenDustWarning = false;
+            showMissionDialog = false;
+            showOperationGuide = false;
+            gamePhase = 'intro';
+            player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+            createDrops();
+            createAIDrops();
+            lastMoveTime = millis();
+            swallowCount = 0;
+            starCount = 0;
+            dustEffectEndTime = 0;
+            gameOver = false;
+            missionComplete = false;
+            missionCompleteTime = 0;
+            missionFailed = false;
+            missionFailedTime = 0;
+            missionTimeRemaining = MISSION_TIME_LIMIT;
+            nextDir = null;
+            particles = [];
+            ripples = [];
+            trails = [];
+            fusedAIs = [];
+            activePartners = 0;
+            playerMoveInterval = MOVE_INTERVAL;
+            moveMode = 'key';
+            noTargetCount = 0;
+            isPaused = false;
+            manualPaused = false;
+            pauseStartTime = 0;
+            restartConfirm = false;
+            fusionPopup = null;
+            leavePopup = null;
+            missionPausedTime = 0;
+            missionPausedStartTime = 0;
+        }
+        
+        function completeReset() {
+            try {
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.stop();
+                    } catch (e) {
+                        console.log('Background music stop failed');
+                    }
+                }
+                
+                try {
+                    if (introVideo) {
+                        introVideo.stop();
+                        introVideo.hide();
+                        introVideo.elt.currentTime = 0;
+                        introVideo.elt.muted = true;
+                    }
+                } catch (e) {
+                    console.log('Intro video reset failed');
+                }
+                
+                try {
+                    if (secondVideo) {
+                        secondVideo.stop();
+                        secondVideo.hide();
+                        secondVideo.elt.currentTime = 0;
+                    }
+                } catch (e) {
+                    console.log('Second video reset failed');
+                }
+                
+                try {
+                    if (thirdVideo) {
+                        thirdVideo.stop();
+                        thirdVideo.hide();
+                        thirdVideo.elt.currentTime = 0;
+                    }
+                } catch (e) {
+                    console.log('Third video reset failed');
+                }
+                
+                try {
+                    if (secondVideoLoaded && secondVideo) {
+                        secondVideo.elt.addEventListener('ended', () => {
+                            if (introState === 'secondPlaying') {
+                                introState = 'secondPaused';
+                            }
+                        }, { once: true });
+                    }
+                } catch (e) {
+                    console.log('Second video ended listener re-add failed');
+                }
+                
+                try {
+                    if (thirdVideoLoaded && thirdVideo) {
+                        thirdVideo.elt.addEventListener('ended', () => {
+                            if (gamePhase === 'thirdVideo') {
+                                gamePhase = 'thirdPaused';
+                            }
+                        }, { once: true });
+                    }
+                } catch (e) {
+                    console.log('Third video ended listener re-add failed');
+                }
+                
+                try {
+                    if (fifteenthVideoLoaded && fifteenthVideo) {
+                        fifteenthVideo.elt.currentTime = 0;
+                        fifteenthVideo.elt.addEventListener('ended', () => {
+                            if (introState === 'preIntro') {
+                                fifteenthVideo.stop();
+                                fifteenthVideo.hide();
+                                introState = 'firstMuted';
+                                
+                                if (introVideoLoaded && introVideo) {
+                                    introVideo.loop();
+                                }
+                            }
+                        }, { once: true });
+                    }
+                } catch (e) {
+                    console.log('Fifteenth video ended listener re-add failed');
+                }
+                
+                introState = 'waiting';
+                gamePhase = 'intro';
+                skipIntro = false;
+                journalSoundPlayed = false;
+                missionCompleteSoundPlayed = false;
+                hasSeenDustWarning = false;
+                showMissionDialog = false;
+                showOperationGuide = false;
+                showStartDialog = false;
+                gameStartTime = 0;
+                tutorialTriggered = false; // 重置教程触发锁
+                
+                totalSteps = 0;
+                totalFriends = 0;
+                friendNames = [];
+                
+                gameOver = false;
+                gameOverTime = 0;
+                missionComplete = false;
+                missionCompleteTime = 0;
+                missionFailed = false;
+                missionFailedTime = 0;
+                missionTimeRemaining = MISSION_TIME_LIMIT;
+                
+                player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+                
+                drops = [];
+                aiDrops = [];
+                createDrops();
+                createAIDrops();
+                
+                lastMoveTime = millis();
+                swallowCount = 0;
+                starCount = 0;
+                dustEffectEndTime = 0;
+                
+                nextDir = null;
+                particles = [];
+                ripples = [];
+                trails = [];
+                fusedAIs = [];
+                activePartners = 0;
+                
+                playerMoveInterval = MOVE_INTERVAL;
+                moveMode = 'key';
+                noTargetCount = 0;
+                isPaused = false;
+                manualPaused = false;
+                pauseStartTime = 0;
+                restartConfirm = false;
+                fusionPopup = null;
+                leavePopup = null;
+                missionPausedTime = 0;
+                missionPausedStartTime = 0;
+                
+                mouseParticles = [];
+                clickParticles = [];
+                mouseTrail = [];
+            } catch (e) {
+                console.error('Complete reset failed:', e);
+            }
+        }
+        
+        function resetGame() {
+            resetGameData();
+            showMissionDialog = true;
+        }
+        
+        function mouseReleased() {
+            leftMousePressed = false;
+            rightMousePressed = false;
+            
+            if (isPaused && longPressStartTime > 0) {
+                longPressStartTime = 0;
+            }
+        }
+        
+        let touchStartCount = 0;
+        let touchStartTimer = 0;
+        
+        function touchStarted() {
+            playBubbleSound();
+            if (touches.length > 0) {
+                createClickParticles(touches[0].x, touches[0].y);
+            } else {
+                createClickParticles(mouseX, mouseY);
+            }
+            
+            if (!skipIntro) {
+                if (introState === 'waiting') {
+                    introState = 'firstMuted';
+                    if (introVideoLoaded && introVideo) {
+                        introVideo.loop();
+                    }
+                    return false;
+                }
+                
+                if (introState === 'preIntro') {
+                    if (fifteenthVideoLoaded && fifteenthVideo) {
+                        fifteenthVideo.play();
+                    } else {
+                        introState = 'firstMuted';
+                        if (introVideoLoaded && introVideo) {
+                            introVideo.loop();
+                        }
+                    }
+                    return false;
+                }
+                
+                if (introState === 'firstMuted') {
+                    introVideo.elt.muted = false;
+                    introVideo.elt.currentTime = 0;
+                    introState = 'firstUnmuted';
+                    return false;
+                }
+                
+                if (introState === 'firstUnmuted') {
+                    introVideo.stop();
+                    introVideo.hide();
+                    if (secondVideoLoaded && secondVideo) {
+                        secondVideo.elt.muted = false;
+                        secondVideo.play();
+                        introState = 'secondPlaying';
+                    } else {
+                        skipIntro = true;
+                        if (!tutorialTriggered) {
+                            tutorialTriggered = true;
+                            showMissionDialog = true;
+                        }
+                    }
+                    return false;
+                }
+                
+                if (introState === 'secondPaused') {
+                    secondVideo.stop();
+                    secondVideo.hide();
+                    introState = 'done';
+                    skipIntro = true;
+                    if (!tutorialTriggered) {
+                        tutorialTriggered = true;
+                        showMissionDialog = true;
+                    }
+                    return false;
+                }
+            }
+            
+            if (gamePhase === 'thirdVideo') {
+                return false;
+            }
+            
+            if (gamePhase === 'thirdPaused') {
+                thirdVideo.stop();
+                thirdVideo.hide();
+                gamePhase = 'journal';
+                journalStartTime = millis();
+                return false;
+            }
+            
+            if (gamePhase === 'journal') {
+                if (millis() - journalStartTime > 5000) {
+                    completeReset();
+                }
+                return false;
+            }
+            
+            if (showMissionDialog) {
+                showMissionDialog = false;
+                showOperationGuide = true;
+                return false;
+            }
+            
+            if (showOperationGuide) {
+                showOperationGuide = false;
+                gamePhase = 'playing';
+                missionStartTime = millis();
+                return false;
+            }
+            
+            touchStartCount = touches.length;
+            touchStartTimer = millis();
+            
+            if (touches.length === 1) {
+                leftMousePressed = true;
+                rightMousePressed = false;
+            } else if (touches.length >= 2) {
+                leftMousePressed = false;
+                rightMousePressed = true;
+            }
+            
+            if (isPaused && touches.length === 1) {
+                touchLongPressStartTime = millis();
+                return false;
+            }
+            
+            if (restartConfirm) {
+                if (touches.length === 1) {
+                    resetGame();
+                } else if (touches.length >= 2) {
+                    restartConfirm = false;
+                    manualPaused = false;
+                    lastMoveTime = millis();
+                }
+                return false;
+            }
+            
+            if (showHelp) {
+                showHelp = false;
+                manualPaused = false;
+                lastMoveTime = millis();
+                if (restartButtonHovered) {
+                    restartConfirm = true;
+                }
+                return false;
+            }
+            
+            if (restartButtonHovered) {
+                restartConfirm = true;
+                manualPaused = true;
+                return false;
+            }
+            
+            if (pauseButtonHovered) {
+                manualPaused = !manualPaused;
+                if (!manualPaused) {
+                    lastMoveTime = millis();
+                }
+                return false;
+            }
+            
+            if (helpButtonHovered) {
+                showHelp = true;
+                manualPaused = true;
+                return false;
+            }
+            
+            if (moveMode === 'key') {
+                if (touches.length === 1) {
+                    nextDir = 'left';
+                } else if (touches.length >= 2) {
+                    nextDir = 'right';
+                }
+            }
+            
+            if (gameOver && touches.length >= 1) {
+                player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+                createDrops();
+                createAIDrops();
+                lastMoveTime = millis();
+                swallowCount = 0;
+                starCount = 0;
+                dustEffectEndTime = 0;
+                gameOver = false;
+                missionComplete = false;
+                missionCompleteTime = 0;
+                missionFailed = false;
+                missionFailedTime = 0;
+                missionTimeRemaining = MISSION_TIME_LIMIT;
+                nextDir = null;
+                particles = [];
+                ripples = [];
+                trails = [];
+                fusedAIs = [];
+                activePartners = 0;
+                playerMoveInterval = MOVE_INTERVAL;
+                moveMode = 'key';
+                noTargetCount = 0;
+                showMissionDialog = true;
+                showOperationGuide = false;
+                missionPausedTime = 0;
+                missionPausedStartTime = 0;
+                missionCompleteSoundPlayed = false;
+                hasSeenDustWarning = false;
+                return false;
+            }
+            
+            if (showMissionDialog) {
+                showMissionDialog = false;
+                showOperationGuide = true;
+                return false;
+            }
+            
+            if (showOperationGuide) {
+                showOperationGuide = false;
+                gamePhase = 'playing';
+                missionStartTime = millis();
+                return false;
+            }
+            
+            if (missionComplete && touches.length >= 1) {
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.stop();
+                    } catch (e) {
+                        console.log('Background music stop failed');
+                    }
+                }
+                
+                if (thirdVideoLoaded && thirdVideo) {
+                    thirdVideo.elt.muted = false;
+                    thirdVideo.play();
+                    gamePhase = 'thirdVideo';
+                } else {
+                    gamePhase = 'journal';
+                    journalStartTime = millis();
+                    
+                    if (bgMusicLoaded && bgMusic) {
+                        try {
+                            bgMusic.setVolume(0.35);
+                            bgMusic.loop();
+                        } catch (e) {
+                            console.log('Background music play failed');
+                        }
+                    }
+                }
+                
+                player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+                createDrops();
+                createAIDrops();
+                lastMoveTime = millis();
+                swallowCount = 0;
+                starCount = 0;
+                dustEffectEndTime = 0;
+                gameOver = false;
+                missionComplete = false;
+                missionCompleteTime = 0;
+                missionFailed = false;
+                missionFailedTime = 0;
+                missionTimeRemaining = MISSION_TIME_LIMIT;
+                nextDir = null;
+                particles = [];
+                ripples = [];
+                trails = [];
+                fusedAIs = [];
+                activePartners = 0;
+                playerMoveInterval = MOVE_INTERVAL;
+                moveMode = 'key';
+                noTargetCount = 0;
+                showMissionDialog = false;
+                showOperationGuide = false;
+                missionPausedTime = 0;
+                missionPausedStartTime = 0;
+                return false;
+            }
+            
+            if (missionFailed && touches.length >= 1) {
+                if (bgMusicLoaded && bgMusic) {
+                    try {
+                        bgMusic.stop();
+                    } catch (e) {
+                        console.log('Background music stop failed');
+                    }
+                }
+                
+                if (thirdVideoLoaded && thirdVideo) {
+                    thirdVideo.elt.muted = false;
+                    thirdVideo.play();
+                    gamePhase = 'thirdVideo';
+                } else {
+                    gamePhase = 'journal';
+                    journalStartTime = millis();
+                    
+                    if (bgMusicLoaded && bgMusic) {
+                        try {
+                            bgMusic.setVolume(0.35);
+                            bgMusic.loop();
+                        } catch (e) {
+                            console.log('Background music play failed');
+                        }
+                    }
+                }
+                
+                player = new PlayerDrop(CANVAS_CENTER_X, 150, PLAYER_INITIAL_RADIUS);
+                createDrops();
+                createAIDrops();
+                lastMoveTime = millis();
+                swallowCount = 0;
+                starCount = 0;
+                dustEffectEndTime = 0;
+                gameOver = false;
+                missionComplete = false;
+                missionCompleteTime = 0;
+                missionFailed = false;
+                missionFailedTime = 0;
+                missionTimeRemaining = MISSION_TIME_LIMIT;
+                nextDir = null;
+                particles = [];
+                ripples = [];
+                trails = [];
+                fusedAIs = [];
+                playerMoveInterval = MOVE_INTERVAL;
+                moveMode = 'key';
+                noTargetCount = 0;
+                showMissionDialog = true;
+                missionPausedTime = 0;
+                missionPausedStartTime = 0;
+                return false;
+            }
+            
+            return false;
+        }
+        
+        function touchEnded() {
+            leftMousePressed = false;
+            rightMousePressed = false;
+            
+            if (touchLongPressStartTime > 0) {
+                const pressDuration = millis() - touchLongPressStartTime;
+                if (pressDuration >= LONG_PRESS_THRESHOLD && isPaused) {
+                    endMeeting(true);
+                }
+                touchLongPressStartTime = 0;
+            }
+            return false;
+        }
+    </script>
+</body>
+</html>
